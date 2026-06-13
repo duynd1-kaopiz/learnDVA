@@ -1,0 +1,804 @@
+================================================================================
+  AWS DVA-C02 — GHI CHÚ ÔN THI (cập nhật: 2026-06-13)
+  File: dva-exam-notes/dva-notes.txt
+  Cập nhật tự động khi giải câu hỏi DVA qua skill dva-exam-notes
+================================================================================
+
+MỤC LỤC NHANH
+  1. API Gateway
+  2. Lambda
+  3. S3
+  4. CloudFront
+  5. ECS / Fargate / ECR
+  6. Elastic Beanstalk
+  7. EC2 / Auto Scaling / ELB
+  8. RDS
+  9. DynamoDB
+  10. SQS
+  11. Kinesis Data Streams / Firehose
+  12. Storage (EFS / EBS)
+  13. ElastiCache (Redis / Memcached)
+  14. VPC / Networking
+  15. IAM / Security
+  16. CI/CD
+  17. CloudFormation
+  18. Step Functions / CloudTrail
+  19. X-Ray
+  20. Kiến trúc tổng hợp
+  21. Bảng phân biệt hay bẫy
+  22. Lỗi hay chọn nhầm
+
+--------------------------------------------------------------------------------
+1. API GATEWAY
+--------------------------------------------------------------------------------
+
+[Câu] API versioning (v1/v2/test)
+  Đáp án: Stages + Stage Variables
+  Tip: Authorizer = auth; Resource Policy = access control — KHÔNG dùng versioning
+  Tip: Mỗi stage có URL riêng; stage var trỏ Lambda alias
+
+[Câu] prod/test/dev → Lambda khác nhau
+  Đáp án: Stage Variables + Lambda Aliases
+  Tip: ARN: ...function:MyFn:${stageVariables.lambdaAlias}
+
+[Câu] Method-level execution logging
+  Đáp án: IAM role (trust apigateway.amazonaws.com) + STS enabled ở region
+  Tip: Không nhầm execution logging vs access logging
+
+[Câu] Custom headers + DynamoDB auth
+  Đáp án: Lambda Authorizer (REQUEST type)
+  Tip: Model = validate JSON; Cognito ≠ lookup DynamoDB custom
+
+[Câu] HTTP error codes
+  Đáp án: 503 = no target; 502 = bad response; 504 = timeout
+  Tip: "Không biết gửi đi đâu" → 503
+
+--------------------------------------------------------------------------------
+2. LAMBDA
+--------------------------------------------------------------------------------
+
+[Câu] Node.js + dependencies (pg/RDS)
+  Đáp án: Zip chung code + node_modules trong 1 file
+  Tip: Lambda KHÔNG tự npm install; không upload 2 zip riêng
+
+[Câu] Cross-account → DynamoDB (Account B)
+  Yêu cầu đề: Lambda Account A cần đọc/ghi DynamoDB Account B
+  Yêu cầu đề: Đề hỏi cấu hình IAM thế nào; DynamoDB không có resource policy
+  Yêu cầu đề: Bẫy — sửa trust policy execution role A, hoặc policy trực tiếp lên table
+  Đáp án: AssumeRole; trust policy trên role Account B
+  Tip: Trust policy thuộc role ĐÍCH, không phải execution role A
+
+[Câu] DLQ khi nào nhận message?
+  Đáp án: Async invocation + fail HẾT mọi retry
+  Tip: Sync (API GW) không dùng DLQ async; fail 1 lần rồi OK → không vào DLQ
+
+[Câu] Bundle dependencies
+  Đáp án: 1 deployment package hoặc Lambda Layers
+
+--------------------------------------------------------------------------------
+3. S3
+--------------------------------------------------------------------------------
+
+[Câu] Private bucket, truy cập tạm thời
+  Đáp án: Pre-signed URL
+  Tip: Bucket/IAM policy = quyền lâu dài
+
+[Câu] Bắt buộc HTTPS (in transit)
+  Đáp án: Bucket policy Deny + aws:SecureTransport: false
+  Tip: KMS policy không enforce HTTPS cho GetObject
+
+[Câu] Static website 403
+  Đáp án: Bucket policy public s3:GetObject
+  Tip: 403 = permission; CORS = cross-origin browser
+
+[Câu] S3 mới, CloudFront cũ
+  Đáp án: CloudFront invalidation
+  Tip: CI/CD: upload S3 → invalidate CF
+
+[Câu] Overwrite + đọc ngay
+  Đáp án: Luôn trả version mới nhất (strong consistency từ 2020)
+  Tip: Từ "might/propagate" = behavior cũ (SAI)
+
+[Câu] Event notification thiếu
+  Đáp án: Concurrent PUT cùng key, non-versioned → có thể chỉ 1 event
+  Tip: Versioning GIÚP, không phải nguyên nhân thiếu event
+
+[Câu] Cross-account NOT feasible
+  Đáp án: Khác partition (aws vs aws-cn)
+  Tip: Cùng partition → bucket policy / AssumeRole OK
+
+[Câu] Multi-account upload, bucket owner
+  Đáp án: S3 Object Ownership (Bucket owner enforced)
+  Tip: CORS/Access Analyzer không đổi ownership
+
+[Câu] Subset CSV (1 tháng, 3 cột)
+  Đáp án: S3 Select
+  Tip: Analytics/Inventory/Access Logs không đọc nội dung
+
+[Câu] S3 access control (chọn 2)
+  Đáp án: Bucket policy + IAM; Pre-signed URL + ACLs
+  Tip: Permissions boundaries ≠ S3 access
+
+[Câu] Transfer Acceleration
+  Đáp án: Tăng tốc upload/download từ xa qua edge
+  Tip: Không replicate; khác CloudFront cache
+
+[Câu] SSE-S3 vs SSE-KMS vs SSE-C
+  Yêu cầu đề: Chọn loại mã hóa at rest; ai quản lý key
+  Đáp án: SSE-S3 = S3 AES-256; SSE-KMS = KMS CMK; SSE-C = client gửi key mỗi request
+  Tip: SSE-S3 đơn giản không KMS cost; SSE-KMS có audit CloudTrail
+  Tip: SSE-C S3 không lưu key; bắt buộc HTTPS; mất key = mất data
+
+[Câu] SSE-KMS — khóa KMS & quyền truy cập
+  Yêu cầu đề: Access Denied object SSE-KMS; cross-account cần KMS key policy
+  Đáp án: IAM cần S3 + kms:Decrypt/kms:GenerateDataKey; key policy allow principal
+  Tip: aws/s3 default CMK vs customer managed CMK
+
+[Câu] SSE-C — customer-provided keys
+  Yêu cầu đề: Tự quản lý key ngoài AWS; header x-amz-server-side-encryption-customer-*
+  Đáp án: Client gửi key mỗi PUT/GET; S3 không persist key
+  Tip: Copy object SSE-C phải cung cấp key nguồn/đích
+
+[Câu] Default encryption & bắt buộc mã hóa
+  Yêu cầu đề: Mọi upload phải SSE; không cho unencrypted object
+  Đáp án: Default encryption bucket + bucket policy Deny nếu thiếu SSE header
+  Tip: HTTPS (SecureTransport) ≠ SSE at rest — 2 policy khác nhau
+
+[Câu] Storage classes — tổng quan
+  Yêu cầu đề: Chọn class theo tần suất truy cập, retrieval time, chi phí
+  Đáp án: Standard → IA → Glacier Instant/Flexible → Deep Archive
+  Tip: Standard-IA/One Zone-IA min 30 ngày + retrieval fee
+  Tip: Intelligent-Tiering auto tier, phí monitoring, không retrieval fee
+
+[Câu] Chọn storage class theo use case
+  Yêu cầu đề: Archive năm/chờ giờ/ms; pattern không rõ; chấp nhận 1 AZ
+  Đáp án: Deep Archive rẻ nhất lâu dài; GIR ms retrieval; Intelligent-Tiering pattern không rõ
+  Tip: One Zone-IA rẻ hơn Standard-IA nhưng chỉ 1 AZ durability
+
+[Câu] Lifecycle — chuyển storage class
+  Yêu cầu đề: Tự chuyển IA/Glacier sau N ngày; xóa sau retention
+  Đáp án: S3 Lifecycle rules — Transition + Expiration
+  Tip: Glacier restore tạo bản copy tạm; không transition ngược trực tiếp
+
+--------------------------------------------------------------------------------
+4. CLOUDFRONT
+--------------------------------------------------------------------------------
+
+[Câu] Route S3 theo country (cache miss)
+  Đáp án: Lambda@Edge + origin request
+  Tip: CloudFront Function chỉ viewer req/resp; origin request = cache miss
+
+[Câu] Origin Groups failover
+  Đáp án: Mỗi request thử primary trước; failover chỉ GET/HEAD/OPTIONS
+  Tip: Cache hit = không gọi origin; chỉ cần 2 origins
+
+[Câu] Auth offload (CF→ALB→EC2)
+  Đáp án: Cognito User Pools trên ALB
+  Tip: CloudFront không có User Pool auth built-in
+
+--------------------------------------------------------------------------------
+5. ECS / FARGATE / ECR
+--------------------------------------------------------------------------------
+
+[Câu] Serverless + 2 container — sidecar pattern
+  Yêu cầu đề: Serverless + 2 container chia sẻ network; sidecar = container phụ cùng task
+  Đáp án: 1 task definition + Fargate — 2 container definitions trong cùng task
+  Tip: Sidecar gọi localhost; deploy/scale chung task; không 2 task definition riêng
+
+[Câu] X-Ray daemon sidecar trên Fargate
+  Yêu cầu đề: Fargate cần X-Ray traces; chọn 2: deploy daemon + IAM
+  Đáp án: Sidecar container X-Ray daemon + Task IAM role (xray:PutTraceSegments…)
+  Tip: Daemon Set chỉ EC2 launch; Fargate = sidecar; AWS_XRAY_DAEMON_ADDRESS
+  Lỗi hay nhầm: Daemon Set trên Fargate
+
+[Câu] Task Execution Role vs Task IAM Role
+  Yêu cầu đề: Pull ECR / logs fail vs app gọi S3/DDB fail — role nào?
+  Đáp án: Execution Role = pull ECR + awslogs; Task Role = app AWS API
+  Tip: EC2 launch Task Role cần ECS_ENABLE_TASK_IAM_ROLE=true
+
+[Câu] Task IAM role không hoạt động (EC2 launch type)
+  Đáp án: ECS_ENABLE_TASK_IAM_ROLE=true trong ecs.config
+  Tip: Fargate không cần ecs.config
+
+[Câu] Terminate instance STOPPED — vẫn hiện cluster
+  Yêu cầu đề: Terminate EC2 container instance nhưng vẫn thấy trong cluster
+  Đáp án: STOPPED → agent mất heartbeat, registration không deregister sạch
+  Tip: Drain → deregister → terminate; hoặc deregister-container-instance --force
+
+[Câu] Centralized logging (Fargate)
+  Đáp án: awslogs trong task definition
+  Tip: Metrics ≠ logs; không cài agent trên Fargate; không cần sidecar cho logs
+
+[Câu] CodeBuild push ECR fail (authorization)
+  Đáp án: IAM service role CodeBuild thiếu quyền ECR
+  Tip: Authorization = IAM, không phải Security Group
+
+[Câu] Pull image từ ECR
+  Đáp án: aws ecr get-login + docker pull full URI
+  Tip: Không login bằng access key/secret; Execution Role pull trên Fargate
+
+--------------------------------------------------------------------------------
+6. ELASTIC BEANSTALK
+--------------------------------------------------------------------------------
+
+[Câu] 5 chiến lược deploy — tổng quan
+  Yêu cầu đề: Zero downtime, rollback, canary, giữ capacity — chọn deployment policy
+  Đáp án: All at once | Rolling | Rolling + additional batch | Immutable | Traffic splitting
+  Tip: Blue/Green = 2 environment swap URL — khác 5 policy trong 1 env
+  Tip: Traffic splitting chỉ ALB
+
+[Câu] All at once
+  Yêu cầu đề: Dev/test, deploy nhanh, chấp nhận downtime
+  Đáp án: Cập nhật tất cả instance cùng lúc
+  Tip: Production ít dùng; rollback = deploy lại version cũ
+
+[Câu] Rolling
+  Yêu cầu đề: Zero downtime, chấp nhận giảm capacity tạm thời
+  Đáp án: Deploy từng batch; capacity giảm trong lúc update
+  Tip: Kết hợp Deployment Groups chia % instance
+
+[Câu] Rolling with additional batch
+  Yêu cầu đề: Zero downtime + giữ full capacity; chấp nhận thêm instance tạm
+  Đáp án: Launch batch mới trước → chuyển traffic → terminate batch cũ
+  Tip: Khác Rolling thường — Rolling giảm capacity
+
+[Câu] Immutable
+  Yêu cầu đề: Rollback nhanh terminate fleet mới; tránh nửa cũ nửa mới trên instance
+  Đáp án: Fleet EC2 mới hoàn toàn → swap → xóa fleet cũ
+  Tip: An toàn trong 5 policy; rollback = terminate new fleet
+
+[Câu] Traffic splitting — Canary
+  Yêu cầu đề: 10% traffic test version mới; environment có ALB
+  Đáp án: Traffic splitting — % traffic canary rồi tăng dần
+  Tip: Chỉ ALB; Classic LB không hỗ trợ
+
+[Câu] Cross-account migration
+  Đáp án: Saved Config → download → sửa → upload S3 account B
+  Tip: Không share qua IAM role
+
+[Câu] ELB unhealthy, ASG không thay
+  Đáp án: HealthCheckType: ELB trong .ebextensions
+  Tip: EC2 check ≠ app health
+
+[Câu] Min downtime + rollback nhanh
+  Yêu cầu đề: Production swap DNS instant rollback; 2 environment song song
+  Đáp án: Blue/Green + swap Route 53 CNAME / EB swap URL
+  Tip: Rollback = swap DNS lại; khác Immutable terminate fleet
+
+[Câu] Chọn chiến lược deploy — decision tree
+  Yêu cầu đề: Scenario → chọn đúng 1 policy
+  Đáp án: Dev→All at once; giảm capacity OK→Rolling; giữ capacity→Rolling+additional/Immutable
+  Tip: Canary ALB→Traffic splitting; instant DNS rollback→Blue/Green
+
+[Câu] Deploy lần lượt nhóm EC2
+  Yêu cầu đề: Chia nhóm deploy tuần tự; không nhầm Hooks
+  Đáp án: Deployment Groups + Rolling policy batch size
+  Tip: Hooks = lifecycle script trên instance
+
+[Câu] RDS tạo trong EB, destroy env
+  Đáp án: Snapshot trước khi destroy
+  Tip: Production: RDS standalone
+
+[Câu] Chạm giới hạn 1000 app versions
+  Đáp án: Application Version Lifecycle Policy
+  Tip: MaxCount hoặc MaxAge
+
+[Câu] 3 containers trên 1 EC2
+  Đáp án: Docker multi-container (Dockerrun.aws.json v2)
+  Tip: Single-container = 1 container/EC2
+
+--------------------------------------------------------------------------------
+7. EC2 / AUTO SCALING / ELB
+--------------------------------------------------------------------------------
+
+[Câu] Spot + On-Demand + CodeDeploy agent
+  Đáp án: Launch Template + User data
+  Tip: Launch Configuration = legacy
+
+[Câu] CPU cao nhưng không scale
+  Đáp án: desired == max → không scale được
+  Tip: CPU vượt ngưỡng ≠ chắc scale
+
+[Câu] Tắt EC2 → instance mới tự launch
+  Đáp án: Thuộc ASG (giữ desired capacity)
+  Tip: ALB/NLB không launch EC2
+
+[Câu] Client cache ELB IP → sau đó chết
+  Đáp án: ELB IP động, DNS cố định
+  Tip: Luôn dùng DNS name
+
+[Câu] HTTPS gây CPU cao trên EC2
+  Đáp án: SSL termination tại ALB + ACM cert
+  Tip: Pass-through = EC2 vẫn decrypt
+
+[Câu] DeleteOnTermination khi running
+  Đáp án: CLI modify-instance-attribute
+  Tip: Không nhầm DisableApiTermination
+
+[Câu] ASG facts (chọn 2)
+  Đáp án: Không span region; không thêm EBS volume
+  Tip: 1 region, multi-AZ; scale = số instance
+
+--------------------------------------------------------------------------------
+8. RDS
+--------------------------------------------------------------------------------
+
+[Câu] Multi-AZ (chọn 2)
+  Đáp án: Failover tự động; maintenance patch standby trước
+  Tip: Multi-AZ = SYNC; Read Replica = ASYNC
+
+[Câu] DR PostgreSQL (chọn 2)
+  Đáp án: Cross-Region Read Replica + Multi-AZ + backup (same region)
+  Tip: Multi-AZ backup không tự cross-region
+
+[Câu] CloudFormation endpoint
+  Đáp án: !GetAtt MyDB.Endpoint.Address
+  Tip: !Ref = ID/tên, không phải endpoint
+
+--------------------------------------------------------------------------------
+9. DYNAMODB
+--------------------------------------------------------------------------------
+
+9. DYNAMODB
+--------------------------------------------------------------------------------
+
+[Câu] Latency cao, user global (chọn 2) — chat marathon
+  Yêu cầu đề: User global latency cao; chọn 2 giải pháp
+  Đáp án: Global Tables + Eventually consistent reads
+  Tip: Connection pooling = SAI (DDB không như RDS); DAX ≠ giải pháp global latency
+
+[Câu] Cross-account access — chat marathon
+  Yêu cầu đề: Lambda A → DynamoDB B; không resource policy
+  Đáp án: AssumeRole; trust policy trên role Account B
+
+[Câu] API cơ bản — PutItem / GetItem / UpdateItem / DeleteItem
+  Yêu cầu đề: Thao tác 1 item; ghi vs patch attribute
+  Đáp án: PutItem overwrite; GetItem đọc 1; UpdateItem patch; DeleteItem xóa 1
+  Tip: ConditionExpression optimistic lock trên Put/Update/Delete
+
+[Câu] BatchGetItem & BatchWriteItem
+  Yêu cầu đề: Nhiều item ít request; UnprocessedKeys/Items retry
+  Đáp án: BatchGet ≤100/16MB; BatchWrite ≤25/16MB
+  Tip: BatchWrite partial success; ACID → TransactWriteItems
+
+[Câu] Query vs Scan
+  Yêu cầu đề: Tìm theo PK hiệu quả vs đọc cả table
+  Đáp án: Query bắt buộc PK; Scan đọc hết — đắt RCU
+  Tip: Scan+Filter tốn RCU theo data scanned
+
+[Câu] projection / filter / condition expression — chat practice
+  Yêu cầu đề: Scan chỉ trả vài cột name email
+  Đáp án: ProjectionExpression=attributes; FilterExpression=lọc items; ConditionExpression=điều kiện ghi
+  Tip: filter-expression KHÔNG chọn cột — chỉ lọc item
+
+[Câu] DAX — DynamoDB Accelerator
+  Yêu cầu đề: Microsecond read; giảm RCU read-heavy
+  Đáp án: DAX cluster in-memory; read-through + write-through
+  Tip: DAX ≠ Global Tables; DAX ≠ chỉ write; API-compatible với DDB
+
+[Câu] GSI vs LSI
+  Yêu cầu đề: Query attribute không phải PK
+  Đáp án: GSI PK/SK mới capacity riêng; LSI cùng PK khác SK lúc create table
+  Tip: LSI max 5; strong read trên LSI
+
+[Câu] DynamoDB Streams + Lambda
+  Yêu cầu đề: Trigger khi INSERT/MODIFY/REMOVE
+  Đáp án: Enable Stream → Lambda event source mapping
+  Tip: Stream per-table ordered; khác Kinesis
+
+[Câu] TTL — tự xóa item hết hạn
+  Yêu cầu đề: Session/log auto-delete; attribute Number epoch
+  Đáp án: Enable TTL attribute; xóa nền không tốn WCU
+  Tip: Xóa không instant — delay vài ngày
+
+[Câu] TransactWrite / TransactGet — ACID
+  Yêu cầu đề: All-or-nothing nhiều item
+  Đáp án: TransactWriteItems/TransactGetItems max 25, 4MB; write 2× WCU
+  Tip: BatchWrite có thể partial success
+
+[Câu] DynamoDB API — bảng tra cứu
+  Đáp án: Put/Get/Update/Delete; BatchGet 100 BatchWrite 25; Query/Scan; Transact; PartiQL
+  Tip: Pagination LastEvaluatedKey
+
+[Câu] RCU / WCU — công thức cơ bản
+  Yêu cầu đề: Cho kích thước item KB + read/write → hỏi cần bao nhiêu RCU/WCU
+  Đáp án: WCU = ceil(KB/1); Strong RCU = ceil(KB/4); Eventual RCU = Strong ÷ 2
+  Tip: 1 WCU = 1 KB write/s; 1 RCU strong = 4 KB read/s; 1 RCU eventual = 8 KB read/s
+  Tip: Luôn ceil; transactional write = 2 × WCU
+
+[Câu] Tính WCU — item lớn hơn 1 KB
+  Yêu cầu đề: Item 2.5 KB, 6 KB ghi 1 lần/s → mấy WCU? BatchWrite cộng từng item
+  Đáp án: WCU = ceil(kích thước KB); TransactWriteItems = 2 × WCU
+  Tip: 2.5 KB → 3 WCU (không làm tròn xuống 2)
+
+[Câu] Tính RCU — Strong vs Eventually consistent
+  Yêu cầu đề: Cùng item so sánh RCU strong vs eventual; Scan/Query tính theo data đọc
+  Đáp án: Strong RCU = ceil(KB/4); Eventual = Strong ÷ 2
+  Tip: 10 KB strong = 3 RCU; eventual = 1.5 RCU
+  Tip: Scan đọc cả table → RCU theo size scanned, không theo số row trả về
+
+[Câu] Provisioned capacity — throttling
+  Yêu cầu đề: ProvisionedThroughputExceededException; traffic spike vượt RCU/WCU
+  Đáp án: Tăng RCU/WCU, Auto Scaling, hoặc chuyển On-Demand
+  Tip: On-Demand tự scale, trả theo request; Provisioned rẻ hơn nếu traffic ổn định
+
+[Câu] GSI — capacity riêng
+  Yêu cầu đề: Query nhiều trên GSI; write vào table có GSI
+  Đáp án: GSI có RCU/WCU riêng; PutItem tốn WCU table + WCU GSI (projection)
+  Tip: Thiếu GSI capacity → throttle riêng, không kéo theo base table
+
+--------------------------------------------------------------------------------
+10. SQS
+--------------------------------------------------------------------------------
+
+[Câu] Black Friday volume lớn
+  Đáp án: SQS tự scale, không cần can thiệp
+  Tip: Bottleneck thường ở consumer
+
+[Câu] Poison message (product deleted)
+  Đáp án: Dead-Letter Queue + maxReceiveCount
+  Tip: Long polling ≠ xử lý failure
+
+[Câu] Message > 256 KB
+  Đáp án: SQS Extended Client + S3
+  Tip: Hard limit, không tăng quota; gzip không đủ
+
+[Câu] Long polling vs Short polling
+  Yêu cầu đề: Poll liên tục queue rỗng → tốn API; giảm empty responses
+  Đáp án: Long polling WaitTimeSeconds 1–20 (ReceiveMessageWaitTimeSeconds trên queue)
+  Tip: Short = 0s trả ngay dù empty; Long chờ message đến, ít request hơn
+
+[Câu] Message retention — message lưu bao lâu
+  Yêu cầu đề: Consumer down; message chưa delete giữ được bao lâu
+  Đáp án: Default 4 ngày; min 1 phút; max 14 ngày (MessageRetentionPeriod)
+  Tip: Retention ≠ visibility timeout
+
+[Câu] Max message size — giới hạn 256 KB
+  Yêu cầu đề: Payload > 256 KB fail; không thể tăng quota
+  Đáp án: Hard limit 256 KB; Extended Client + S3 cho message lớn
+  Tip: Batch tối đa 10 messages/request; mỗi message vẫn ≤ 256 KB
+
+[Câu] Visibility timeout — message biến mất tạm
+  Yêu cầu đề: Xử lý lâu → message hiện lại → duplicate processing
+  Đáp án: Default 30s; max 12 giờ; invisible sau ReceiveMessage đến Delete hoặc hết timeout
+  Tip: Lambda + SQS: visibility timeout ≥ 6 × Lambda timeout
+
+[Câu] Tham số SQS — tổng hợp nhanh
+  Yêu cầu đề: Đề hỏi con số retention, visibility, delay, polling, Standard vs FIFO
+  Đáp án: Retention max 14d; visibility max 12h; delay 0–15m; long poll 1–20s; message 256KB
+  Tip: FIFO exactly-once + ordering; Standard at-least-once
+
+--------------------------------------------------------------------------------
+11. KINESIS DATA STREAMS / FIREHOSE
+--------------------------------------------------------------------------------
+
+[Câu] Data Streams vs Firehose — chọn service nào
+  Yêu cầu đề: Đổ log vào S3/Redshift không viết consumer; hoặc nhiều app xử lý real-time
+  Đáp án: Firehose = managed delivery; Streams = custom consumers + real-time processing
+  Tip: Chỉ cần S3 data lake → Firehose, không Streams + Lambda poll
+
+[Câu] Shard & partition key
+  Yêu cầu đề: Ordering theo user_id; scale throughput; cùng key vào cùng shard
+  Đáp án: Cùng partition key → cùng shard; scale = split/merge shard
+  Tip: 1 shard = 1 MB/s in, 2 MB/s out standard; hot key gây bottleneck
+
+[Câu] Nhiều consumer lag — Enhanced Fan-out (EFO)
+  Yêu cầu đề: Nhiều consumer chia 2 MB/s egress → lag
+  Đáp án: EFO — dedicated 2 MB/s mỗi consumer
+  Tip: SubscribeToShard API; Standard shared vs EFO dedicated
+
+[Câu] Firehose — delivery S3 / Redshift / OpenSearch
+  Yêu cầu đề: Clickstream/log → S3 hoặc Redshift; fully managed, không consumer code
+  Đáp án: Kinesis Data Firehose PutRecord → batch → destination
+  Tip: Fail delivery → S3 backup bucket; destinations: S3, Redshift, OpenSearch, Splunk, HTTP
+
+[Câu] Firehose — Lambda transform & buffering
+  Yêu cầu đề: Transform JSON trước S3; điều chỉnh latency ghi file
+  Đáp án: Lambda transformation + buffer 1–128 MB hoặc 60–900s
+  Tip: GZIP/Parquet conversion giảm storage cost
+
+[Câu] Streams retention & replay
+  Yêu cầu đề: Consumer crash đọc lại; giữ data > 24h
+  Đáp án: Retention 24h default max 365d; iterator AT_TIMESTAMP replay
+  Tip: KCL checkpoint DynamoDB; Lambda event source mapping riêng
+
+[Câu] Kinesis vs SQS
+  Yêu cầu đề: Streaming vs queue; replay; fan-out nhiều consumer
+  Đáp án: Kinesis = streaming replay ordering; SQS = queue delete sau xử lý
+  Tip: Kinesis Data Analytics = SQL real-time trên stream
+
+[Câu] Tham số Kinesis — tổng hợp
+  Đáp án: Streams record 1MB; Firehose 1000KB; Firehose buffer size/time; PutRecords 500/5MB
+  Tip: Firehose tự scale không quản shard
+
+--------------------------------------------------------------------------------
+12. STORAGE (EFS / EBS)
+--------------------------------------------------------------------------------
+
+[Câu] File storage, hàng trăm EC2, ít truy cập
+  Đáp án: EFS Standard-IA
+  Tip: S3 = object; EBS = block 1 instance
+
+[Câu] EBS encryption (chọn 2)
+  Đáp án: Encrypted → luôn encrypted; encryption by default = Region
+  Tip: io1 max 50:1 IOPS/GiB
+
+[Câu] io1 200 GiB max IOPS
+  Đáp án: 200 × 50 = 10,000 IOPS max
+  Tip: io2 = 500:1; gp3 = 3000 IOPS baseline
+
+--------------------------------------------------------------------------------
+13. ELASTICACHE (REDIS / MEMCACHED)
+--------------------------------------------------------------------------------
+
+[Câu] Redis vs Memcached — tổng quan
+  Yêu cầu đề: Chọn engine ElastiCache; persistence/HA vs simple cache
+  Đáp án: Redis = data structures + persistence + HA; Memcached = simple multithreaded key-value
+  Tip: Leaderboard sorted set → Redis; simple HTML cache → Memcached
+
+[Câu] Redis — khi nào chọn
+  Yêu cầu đề: Sorted sets, pub/sub, session HA, backup/restore
+  Đáp án: ElastiCache Redis Replication Group; Cluster Mode; Global Datastore
+  Tip: Primary + replica Multi-AZ failover; snapshot backup
+
+[Câu] Memcached — khi nào chọn
+  Yêu cầu đề: Simple key-value cache; scale out nhiều node; không cần persistence
+  Đáp án: ElastiCache Memcached auto-discovery; thêm node scale horizontal
+  Tip: Node chết = mất cache node đó; client-side partition key
+
+[Câu] Redis vs Memcached — bảng so sánh exam
+  Đáp án: Redis = types/persistence/HA/pub-sub; Memcached = multithreaded simple string only
+  Tip: Memcached không replica failover; Redis AUTH + encryption cả hai
+
+[Câu] Blog update, NO stale data
+  Đáp án: Write Through
+  Tip: Lazy Loading + TTL = chấp nhận stale
+
+[Câu] Stale OK ≤ 1 phút
+  Đáp án: Lazy Loading + TTL
+  Tip: Đọc kỹ "no stale" vs "stale acceptable"
+
+--------------------------------------------------------------------------------
+14. VPC / NETWORKING
+--------------------------------------------------------------------------------
+
+[Câu] EC2 private subnet → S3 + DynamoDB
+  Đáp án: Gateway Endpoints cho cả hai + route table
+  Tip: Chỉ S3/DynamoDB dùng Gateway; FREE
+
+[Câu] EC2 đọc S3 private
+  Đáp án: IAM Instance Role + instance profile
+  Tip: Không có "S3 service role"; không dùng access keys
+
+--------------------------------------------------------------------------------
+15. IAM / SECURITY
+--------------------------------------------------------------------------------
+
+[Câu] Cross-account token + resource policy
+  Đáp án: Secrets Manager
+  Tip: Parameter Store KHÔNG có resource policy
+
+[Câu] EC2 video editing → S3
+  Đáp án: Instance role, trust ec2.amazonaws.com
+
+--------------------------------------------------------------------------------
+16. CI/CD
+--------------------------------------------------------------------------------
+
+[Câu] 3 dịch vụ CI/CD — vai trò & file config
+  Yêu cầu đề: Phân biệt ai build / orchestrate / deploy; buildspec vs appspec
+  Đáp án: CodeBuild build/test; CodePipeline stages; CodeDeploy deploy EC2/ECS/Lambda
+  Tip: buildspec = CodeBuild; appspec = CodeDeploy; SPA → S3 + CF invalidation
+
+[Câu] buildspec.yml — ở ROOT repo
+  Yêu cầu đề: Jenkins → CodeBuild; build steps as code; bẫy subfolder
+  Đáp án: buildspec.yml ở ROOT — phases install → pre_build → build → post_build
+  Tip: post_build: s3 sync, docker push, cloudfront create-invalidation
+
+[Câu] appspec.yml — CodeDeploy
+  Yêu cầu đề: Deploy artifact lên EC2/ECS — destination, hooks
+  Đáp án: appspec: version, files, hooks (BeforeInstall, ApplicationStart…)
+  Tip: App → Deployment Group → Deployment; không nhầm buildspec
+
+[Câu] CodeBuild push ECR — authorization fail
+  Yêu cầu đề: Pipeline build Docker push ECR lỗi authorization
+  Đáp án: IAM service role CodeBuild thiếu ecr:GetAuthorizationToken, PutImage…
+  Lỗi hay nhầm: Security Group — authorization = IAM
+
+[Câu] CodeBuild scale & parallel builds
+  Yêu cầu đề: Nhiều Maven build song song — cần scale compute
+  Đáp án: CodeBuild fully managed — tự scale parallel, không cần ASG
+  Lỗi hay nhầm: Bật Auto Scaling cho CodeBuild
+
+[Câu] CodeBuild cache dependencies S3
+  Yêu cầu đề: 100+ Java deps — mỗi build download lại chậm
+  Đáp án: buildspec cache paths → S3 giữa các lần build
+  Tip: Container ephemeral; cache S3 persist
+
+[Câu] Debug buildspec nhanh
+  Yêu cầu đề: Build fail — debug từng command nhanh
+  Đáp án: CodeBuild Agent local (Docker)
+  Lỗi hay nhầm: Enable detailed monitoring
+
+[Câu] Encrypt artifacts at rest
+  Đáp án: KMS CMK trong CodeBuild project
+  Tip: SSL/TLS = in transit; KMS = at rest
+
+[Câu] Trigger CodePipeline — CodeCommit & S3
+  Yêu cầu đề: Deploy ngay khi source đổi — chọn 2 cách
+  Đáp án: CodeCommit push (native) HOẶC S3 source object updated
+  Lỗi hay nhầm: Lambda console trigger pipeline
+
+[Câu] CodeCommit → EventBridge Rules
+  Yêu cầu đề: Rule phản ứng merge/push CodeCommit → start pipeline
+  Đáp án: EventBridge aws.codecommit ReferenceCreated/Updated → CodePipeline
+
+[Câu] CodePipeline state → Lambda notify
+  Đáp án: EventBridge source aws.codepipeline (Pipeline Execution State Change)
+  Tip: Không CloudWatch Alarm; không Lambda console trigger
+
+[Câu] CodeStar Connections — GitHub source
+  Yêu cầu đề: Pipeline source GitHub — OAuth an toàn (lab root)
+  Đáp án: CodeStar Connections + codestar-connections:UseConnection
+  Tip: Lab Vue: GitHub → CodeBuild → S3; IAM role riêng Pipeline & CodeBuild
+
+[Câu] CodeDeploy — In-place vs Blue/Green
+  Yêu cầu đề: EC2 + ELB — re-route traffic sang env mới; rollback nhanh
+  Đáp án: Blue/Green = 2 env/TG swap listener; In-place = update instance đang chạy
+  Tip: ECS blue/green; Lambda = version/alias
+
+[Câu] Deployment Groups vs Hooks
+  Yêu cầu đề: Deploy lần lượt lên nhóm EC2 khác nhau vào thời điểm khác
+  Đáp án: Deployment Groups = tập instance; Hooks = lifecycle scripts appspec
+  Lỗi hay nhầm: Hooks = script trên instance, không phải nhóm instance
+
+[Câu] CodeDeploy Agent — giới hạn revisions trên disk
+  Yêu cầu đề: Chỉ giữ tối đa 2 application revisions trên EC2
+  Đáp án: Cấu hình CodeDeploy Agent trên instance (default 5 revisions)
+  Lỗi hay nhầm: Cấu hình trên CodePipeline
+
+[Câu] CodeDeploy automatic rollback
+  Yêu cầu đề: Deploy fail + auto rollback → chuyện gì xảy ra?
+  Đáp án: CodeDeploy tạo deployment MỚI last known good — ID mới
+  Lỗi hay nhầm: CodePipeline promote SUCCEEDED
+
+[Câu] CI/CD upload S3 — CloudFront cache cũ
+  Yêu cầu đề: CodeBuild upload S3 OK nhưng CF serve stale content
+  Đáp án: CloudFront invalidation trong post_build
+  Tip: S3 mới ≠ CloudFront mới
+
+[Câu] IAM roles CI/CD — nhớ nhanh
+  Đáp án: CodeBuild service role | CodePipeline service role | CodeDeploy agent EC2
+  Tip: CB role: S3, ECR, Logs, KMS, Connection; CP role: StartBuild, pass artifacts
+
+--------------------------------------------------------------------------------
+17. CLOUDFORMATION
+--------------------------------------------------------------------------------
+
+[Câu] RDS endpoint trong Outputs
+  Yêu cầu đề: Lấy RDS hostname sau deploy; !Ref trả ID không phải endpoint
+  Đáp án: !GetAtt MyDB.Endpoint.Address
+  Tip: !Ref = logical ID/param; !GetAtt = attribute cụ thể
+
+[Câu] Intrinsic functions — !Ref, !Sub, !GetAtt
+  Yêu cầu đề: Ghép chuỗi ARN/URL; phân biệt Ref vs GetAtt vs Sub
+  Đáp án: !Sub cho ${Var}; !Ref resource/param; !GetAtt property; !FindInMap từ Mappings
+  Tip: Exam ưu tiên !Sub thay !Join khi có biến
+
+[Câu] Cross-stack reference — Export / Import
+  Yêu cầu đề: Stack A export VPC ID, Stack B dùng không hardcode
+  Đáp án: Outputs Export.Name → !ImportValue ExportName
+  Tip: Export unique trong region; stack export phải tồn tại trước
+
+[Câu] DeletionPolicy — giữ RDS khi xóa stack
+  Yêu cầu đề: Xóa stack nhưng giữ DB/S3; RDS snapshot trước xóa
+  Đáp án: DeletionPolicy Retain hoặc Snapshot (RDS)
+  Tip: UpdateReplacePolicy cho thay thế resource
+
+[Câu] Đổi tên resource — update hay tạo mới?
+  Yêu cầu đề: Đổi Logical ID hoặc DBInstanceIdentifier — DB cũ bị xóa?; lab rds-basic.yml
+  Đáp án: Đổi Logical ID = Remove cũ + Add mới; property immutable = Replacement (tạo mới xóa cũ)
+  Tip: Logical ID ≠ Physical ID; Change Set preview Add/Remove; Retain giữ DB khi replace
+  Lỗi hay nhầm: Nghĩ CFN chỉ rename — thực tế coi resource khác
+
+[Câu] Change Set — xem trước thay đổi
+  Yêu cầu đề: Preview update stack trước khi apply production
+  Đáp án: Tạo Change Set → review → Execute Change Set
+  Tip: Change Set không tự apply
+
+[Câu] Drift detection
+  Yêu cầu đề: Resource bị sửa thủ công Console → lệch template
+  Đáp án: Detect drift so sánh actual vs expected
+  Tip: Drift chỉ báo lệch, không tự fix
+
+[Câu] Nested stacks & Custom Resource
+  Yêu cầu đề: Template lớn tái sử dụng; logic deploy cần Lambda
+  Đáp án: AWS::CloudFormation::Stack nested; Custom Resource + Lambda provider
+  Tip: Custom Resource gọi Lambda onEvent Create/Update/Delete
+
+[Câu] Stack rollback & UPDATE_ROLLBACK_FAILED
+  Yêu cầu đề: Update fail rollback; rollback cũng fail kẹt stack
+  Đáp án: ContinueUpdateRollback hoặc skip resource lỗi
+  Tip: Production nên rollback on failure
+
+--------------------------------------------------------------------------------
+18. STEP FUNCTIONS / CLOUDTRAIL
+--------------------------------------------------------------------------------
+
+[Câu] Không thấy user tạo EBS trong CloudTrail
+  Đáp án: Volume tạo lúc RunInstances → không có CreateVolume riêng
+
+[Câu] Loan approval + human step
+  Đáp án: Standard Workflow (max 1 NĂM)
+  Tip: Express max 5 PHÚT; human approval = Standard
+
+[Câu] Express use case
+  Đáp án: High event rate, short duration
+
+--------------------------------------------------------------------------------
+19. X-RAY
+--------------------------------------------------------------------------------
+
+[Câu] SDK tìm daemon trên ECS
+  Yêu cầu đề: X-Ray sidecar trong task — SDK cần địa chỉ daemon
+  Đáp án: AWS_XRAY_DAEMON_ADDRESS (127.0.0.1:2000 hoặc tên container sidecar)
+  Tip: Chi tiết sidecar Fargate → tab ECS
+
+--------------------------------------------------------------------------------
+20. KIẾN TRÚC TỔNG HỢP
+--------------------------------------------------------------------------------
+
+[Câu] Monolith → HA + scale (SMS API)
+  Đáp án: API Gateway + Lambda HOẶC ALB + ECS
+  Tip: CloudFront/SES/RDS alone không đủ compute layer
+
+--------------------------------------------------------------------------------
+21. BẢNG PHÂN BIỆT HAY BẪY
+--------------------------------------------------------------------------------
+
+Multi-AZ (sync, HA)     vs Read Replica (async, read scale)
+EFS (file, mount)       vs S3 (object) vs EBS (block, 1 EC2)
+CloudFront Function     vs Lambda@Edge (có origin request)
+Stage Variables         vs Lambda Authorizer
+Execution logging       vs Access logging (API GW)
+503 (no backend)        vs 502 (bad response) vs 504 (timeout)
+Write Through           vs Lazy Loading + TTL
+Gateway Endpoint        vs Interface Endpoint (S3/DDB = Gateway)
+Trust policy            vs Permissions policy (cross-account)
+Logical ID đổi tên      vs Property update (Remove+Add vs Modify vs Replace)
+DeletionPolicy          vs UpdateReplacePolicy (xóa stack vs replace resource)
+buildspec.yml           vs appspec.yml
+CodeBuild               vs ASG (CB tự scale, không cần ASG)
+Deployment Groups       vs Hooks (nhóm instance vs script lifecycle)
+In-place deploy         vs Blue/Green (update vs swap traffic)
+Fargate sidecar          vs EC2 Daemon Set (X-Ray Fargate = sidecar)
+Task Execution Role     vs Task IAM Role (ECS)
+
+--------------------------------------------------------------------------------
+22. LỖI HAY CHỌN NHẦM
+--------------------------------------------------------------------------------
+
+1. CloudFront Function + viewer request thay vì Lambda@Edge + origin request
+2. S3 Standard-IA thay vì EFS Standard-IA (nhầm object vs file)
+3. Multi-AZ async — Multi-AZ là SYNCHRONOUS
+4. SSL pass-through thay vì SSL termination trên ALB
+5. Metrics thay vì application logs (ECS Fargate)
+6. Security Group thay vì IAM (authorization ECR)
+7. CORS thay vì bucket policy (S3 static 403)
+8. Trust policy execution role A thay vì role B (cross-account Lambda)
+9. Parameter Store thay vì Secrets Manager (cross-account resource policy)
+10. Lambda console trigger CodePipeline thay vì EventBridge
+11. Connection pooling giảm DynamoDB latency — SAI
+12. filter-expression thay vì projection-expression (chọn cột Scan)
+13. Scan thay vì Query khi đã biết partition key
+14. ASG / Auto Scaling cho CodeBuild — CB tự scale parallel
+15. CodeDeploy Hooks thay vì Deployment Groups (nhóm EC2)
+16. Cấu hình max revisions trên CodePipeline — phải config Agent trên EC2
+17. CodePipeline promote khi CodeDeploy auto rollback — rollback = deployment mới
+18. Detailed monitoring thay vì CodeBuild Agent local debug
+19. Đổi Logical ID CFN nghĩ rename — Remove + Add, DB cũ có thể xóa
+20. ECS Daemon Set cho X-Ray trên Fargate — Fargate dùng sidecar container
+
+================================================================================
+  END OF FILE
+================================================================================
