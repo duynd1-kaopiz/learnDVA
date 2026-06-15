@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DynamoDB RCU / WCU — Luyện tập DVA</title>
+  <style>
+    :root {
+      --bg: #f4f6f9;
+      --surface: #ffffff;
+      --surface2: #f0f4f8;
+      --text: #111827;
+      --muted: #4b5563;
+      --accent: #ff9900;
+      --accent2: #0073bb;
+      --green: #047857;
+      --green-bg: #ecfdf5;
+      --red: #b91c1c;
+      --red-bg: #fef2f2;
+      --border: #d8dee8;
+      --shadow: 0 2px 8px rgba(26, 35, 50, 0.08);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 16px;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+    header {
+      background: linear-gradient(135deg, #fff 0%, #fff8eb 100%);
+      border-bottom: 3px solid var(--accent);
+      padding: 1.25rem 1.5rem;
+      box-shadow: var(--shadow);
+    }
+    header h1 { font-size: 1.5rem; color: #232f3e; }
+    header h1 span { color: var(--accent); }
+    header p { color: var(--muted); margin-top: .35rem; font-size: .95rem; }
+    .formula-box {
+      max-width: 900px;
+      margin: 1rem auto 0;
+      padding: 0 1rem;
+    }
+    .formula {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--accent2);
+      border-radius: 8px;
+      padding: .85rem 1rem;
+      font-size: .9rem;
+      color: var(--muted);
+      box-shadow: var(--shadow);
+    }
+    .formula code { color: var(--accent2); font-weight: 600; }
+    .stats-bar {
+      max-width: 900px;
+      margin: 1rem auto;
+      padding: 0 1rem;
+      display: flex;
+      gap: .75rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .stat {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: .4rem .85rem;
+      font-size: .88rem;
+      box-shadow: var(--shadow);
+    }
+    .stat strong { color: var(--accent2); }
+    .btn-reset {
+      margin-left: auto;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      padding: .45rem 1rem;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: .88rem;
+    }
+    .btn-reset:hover { background: #e5e7eb; }
+    main {
+      max-width: 900px;
+      margin: 0 auto 3rem;
+      padding: 0 1rem;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.15rem 1.25rem;
+      margin-bottom: 1rem;
+      box-shadow: var(--shadow);
+    }
+    .card.answered-correct { border-color: #6ee7b7; background: var(--green-bg); }
+    .card.answered-wrong { border-color: #fca5a5; background: var(--red-bg); }
+    .q-num {
+      font-size: .78rem;
+      font-weight: 700;
+      color: var(--accent2);
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      margin-bottom: .35rem;
+    }
+    .q-text {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: #1e3a5f;
+      margin-bottom: .85rem;
+    }
+    .tag {
+      display: inline-block;
+      font-size: .72rem;
+      font-weight: 700;
+      padding: .12rem .45rem;
+      border-radius: 4px;
+      margin-bottom: .5rem;
+    }
+    .tag-wcu { background: #fef3c7; color: #92400e; }
+    .tag-rcu { background: #dbeafe; color: #1e40af; }
+    .tag-mix { background: #ede9fe; color: #5b21b6; }
+    .options { display: flex; flex-direction: column; gap: .45rem; }
+    .option {
+      display: flex;
+      align-items: flex-start;
+      gap: .6rem;
+      padding: .65rem .85rem;
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: border-color .15s, background .15s;
+      background: var(--surface);
+    }
+    .option:hover:not(.disabled) { border-color: var(--accent2); background: #f0f9ff; }
+    .option.disabled { cursor: default; opacity: .95; }
+    .option.selected-wrong { border-color: var(--red); background: #fff; }
+    .option.selected-correct { border-color: var(--green); background: #fff; }
+    .option.reveal-correct { border-color: var(--green); background: var(--green-bg); }
+    .option-label {
+      flex-shrink: 0;
+      width: 1.5rem;
+      height: 1.5rem;
+      border-radius: 50%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: .8rem;
+      color: var(--muted);
+    }
+    .option-text { flex: 1; }
+    .explain {
+      display: none;
+      margin-top: .85rem;
+      padding: .85rem 1rem;
+      background: #f8fafc;
+      border: 1px dashed var(--accent2);
+      border-radius: 8px;
+      font-size: .92rem;
+    }
+    .explain.show { display: block; }
+    .explain-title {
+      font-weight: 700;
+      color: var(--green);
+      margin-bottom: .35rem;
+      font-size: .88rem;
+    }
+    .explain.wrong-title .explain-title { color: var(--red); }
+    .explain pre {
+      margin-top: .5rem;
+      padding: .5rem .75rem;
+      background: #1e293b;
+      color: #e2e8f0;
+      border-radius: 6px;
+      font-size: .82rem;
+      overflow-x: auto;
+    }
+    footer {
+      text-align: center;
+      padding: 1.5rem;
+      color: var(--muted);
+      font-size: .85rem;
+    }
+    footer a { color: var(--accent2); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>DynamoDB <span>RCU / WCU</span> — Luyện tập</h1>
+    <p>AWS DVA-C02 · Mỗi câu 4 đáp án · Chọn đáp án để xem giải thích</p>
+  </header>
+
+  <div class="formula-box">
+    <div class="formula">
+      <strong>Công thức:</strong>
+      <code>WCU = ceil(KB) × writes/s × (2 nếu TransactWrite)</code> ·
+      <code>RCU strong = ceil(KB/4) × reads/s</code> (tính <em>từng item</em> rồi cộng) ·
+      <code>RCU eventual = RCU strong ÷ 2</code>
+    </div>
+  </div>
+
+  <div class="stats-bar">
+    <span class="stat">Tổng: <strong id="total-count">0</strong></span>
+    <span class="stat">Đúng: <strong id="correct-count">0</strong></span>
+    <span class="stat">Sai: <strong id="wrong-count">0</strong></span>
+    <span class="stat">Chưa làm: <strong id="pending-count">0</strong></span>
+    <button type="button" class="btn-reset" id="btn-reset">Làm lại tất cả</button>
+  </div>
+
+  <main id="quiz-root"></main>
+
+  <footer>
+    LearnDVA ·
+    <a href="index.html">← Tất cả quiz</a> ·
+    <a href="../dva-notes.html">Ghi chú DVA</a>
+  </footer>
+
+  <script>
+    const QUESTIONS = [
+      {
+        tag: "wcu", tagLabel: "WCU",
+        q: "Item 0.8 KB, app thực hiện 1 PutItem mỗi giây. Cần tối thiểu bao nhiêu WCU (provisioned)?",
+        options: ["0.8 WCU", "1 WCU", "2 WCU", "0.5 WCU"],
+        correct: 1,
+        explain: "WCU = ceil(KB). ceil(0.8) = 1.\nMỗi item dù nhỏ hơn 1 KB vẫn tốn tối thiểu 1 WCU khi ghi.",
+        calc: "WCU = ceil(0.8) = 1"
+      },
+      {
+        tag: "wcu", tagLabel: "WCU",
+        q: "Item 4.1 KB, 1 write mỗi giây. Cần bao nhiêu WCU?",
+        options: ["4 WCU", "5 WCU", "4.1 WCU", "6 WCU"],
+        correct: 1,
+        explain: "ceil(4.1) = 5 WCU.\nKhông làm tròn xuống 4 — luôn ceil theo block 1 KB.",
+        calc: "WCU = ceil(4.1) = 5"
+      },
+      {
+        tag: "wcu", tagLabel: "WCU",
+        q: "Item 2 KB, 25 writes mỗi giây. Cần bao nhiêu WCU?",
+        options: ["25 WCU", "50 WCU", "40 WCU", "2 WCU"],
+        correct: 1,
+        explain: "ceil(2) = 2 WCU mỗi write.\n25 × 2 = 50 WCU/giây.",
+        calc: "WCU = ceil(2) × 25 = 2 × 25 = 50"
+      },
+      {
+        tag: "wcu", tagLabel: "WCU",
+        q: "Item 3 KB, 1 TransactWriteItems mỗi giây (1 item trong transaction). Cần bao nhiêu WCU?",
+        options: ["3 WCU", "6 WCU", "9 WCU", "2 WCU"],
+        correct: 1,
+        explain: "TransactWriteItems tốn gấp đôi WCU.\nceil(3) × 2 = 6 WCU.",
+        calc: "WCU = ceil(3) × 2 = 6"
+      },
+      {
+        tag: "wcu", tagLabel: "WCU",
+        q: "BatchWriteItem 1 lần/giây gồm 3 items: 1 KB, 2.2 KB và 5 KB. Tổng WCU?",
+        options: ["8 WCU", "9 WCU", "7 WCU", "10 WCU"],
+        correct: 1,
+        explain: "Cộng WCU từng item (ceil riêng):\n1 → 1, 2.2 → 3, 5 → 5\nTổng = 1 + 3 + 5 = 9 WCU.",
+        calc: "1 + ceil(2.2) + ceil(5) = 1 + 3 + 5 = 9"
+      },
+      {
+        tag: "wcu", tagLabel: "WCU",
+        q: "Item 10 KB, 2 writes/giây, dùng TransactWriteItems. Cần bao nhiêu WCU?",
+        options: ["20 WCU", "40 WCU", "10 WCU", "80 WCU"],
+        correct: 1,
+        explain: "ceil(10) = 10 WCU mỗi write.\nTransactional ×2, 2 writes/giây:\n10 × 2 × 2 = 40 WCU.",
+        calc: "WCU = ceil(10) × 2 writes × 2 (transact) = 40"
+      },
+      {
+        tag: "rcu", tagLabel: "RCU",
+        q: "Item 3 KB, 1 GetItem/giây, strongly consistent read. Cần bao nhiêu RCU?",
+        options: ["0.5 RCU", "1 RCU", "2 RCU", "3 RCU"],
+        correct: 1,
+        explain: "Strong RCU = ceil(KB/4).\nceil(3/4) = ceil(0.75) = 1 RCU.",
+        calc: "RCU = ceil(3/4) = 1"
+      },
+      {
+        tag: "rcu", tagLabel: "RCU",
+        q: "Item 5 KB, 1 read/giây, strongly consistent. Cần bao nhiêu RCU?",
+        options: ["1 RCU", "2 RCU", "3 RCU", "1.25 RCU"],
+        correct: 1,
+        explain: "ceil(5/4) = ceil(1.25) = 2 RCU.\nItem > 4 KB cần 2 block 4 KB.",
+        calc: "RCU = ceil(5/4) = 2"
+      },
+      {
+        tag: "rcu", tagLabel: "RCU",
+        q: "Item 5 KB, 10 strongly consistent reads/giây. Cần bao nhiêu RCU?",
+        options: ["10 RCU", "20 RCU", "5 RCU", "12.5 RCU"],
+        correct: 1,
+        explain: "Mỗi read: ceil(5/4) = 2 RCU.\n10 × 2 = 20 RCU/giây.",
+        calc: "RCU = ceil(5/4) × 10 = 2 × 10 = 20"
+      },
+      {
+        tag: "rcu", tagLabel: "RCU",
+        q: "500 items, mỗi item 2 KB. Scan toàn bộ 1 lần/giây, strongly consistent. RCU?",
+        options: ["250 RCU", "500 RCU", "1000 RCU", "125 RCU"],
+        correct: 1,
+        explain: "Tính TỪNG item: ceil(2/4) = 1 RCU/item.\n500 × 1 = 500 RCU.\n\nBẫy: 500×2÷4=250 — sai vì không gộp tổng KB rồi chia 4.",
+        calc: "500 × ceil(2/4) = 500 × 1 = 500"
+      },
+      {
+        tag: "rcu", tagLabel: "RCU",
+        q: "500 items, mỗi item 2 KB. Scan 1 lần/giây, eventually consistent read. RCU?",
+        options: ["250 RCU", "500 RCU", "125 RCU", "1000 RCU"],
+        correct: 0,
+        explain: "Strong = 500 RCU.\nEventual = strong ÷ 2 = 250 RCU.",
+        calc: "Eventual = 500 ÷ 2 = 250"
+      },
+      {
+        tag: "rcu", tagLabel: "RCU",
+        q: "1000 items, mỗi item 2 KB. Scan 1 lần/giây, strongly consistent. RCU?",
+        options: ["500 RCU", "1000 RCU", "250 RCU", "2000 RCU"],
+        correct: 1,
+        explain: "Mỗi item 2 KB → ceil(2/4) = 1 RCU.\n1000 items = 1000 RCU.\n\nKhông tính (1000×2)÷4 = 500.",
+        calc: "1000 × ceil(2/4) = 1000 RCU"
+      },
+      {
+        tag: "rcu", tagLabel: "RCU",
+        q: "Scan strong 1 lần/giây: 3 items, mỗi item 6 KB. Tổng RCU?",
+        options: ["4 RCU", "5 RCU", "6 RCU", "3 RCU"],
+        correct: 2,
+        explain: "Mỗi item: ceil(6/4) = 2 RCU.\n3 items: 2+2+2 = 6 RCU.\n\nBẫy: (6+6+6)÷4 = 4.5 → 5 RCU.",
+        calc: "3 × ceil(6/4) = 3 × 2 = 6"
+      },
+      {
+        tag: "rcu", tagLabel: "RCU",
+        q: "BatchGetItem 1 lần/giây, strong read: item 7 KB và item 1 KB. Tổng RCU?",
+        options: ["2 RCU", "3 RCU", "4 RCU", "1 RCU"],
+        correct: 1,
+        explain: "Cộng từng item:\n7 KB → ceil(7/4) = 2 RCU\n1 KB → ceil(1/4) = 1 RCU\nTổng = 3 RCU",
+        calc: "ceil(7/4) + ceil(1/4) = 2 + 1 = 3"
+      },
+      {
+        tag: "rcu", tagLabel: "RCU",
+        q: "Item 12 KB, 4 strongly consistent reads/giây. Cần bao nhiêu RCU?",
+        options: ["4 RCU", "8 RCU", "12 RCU", "6 RCU"],
+        correct: 2,
+        explain: "ceil(12/4) = 3 RCU mỗi read.\n3 × 4 = 12 RCU/giây.",
+        calc: "RCU = ceil(12/4) × 4 = 3 × 4 = 12"
+      },
+      {
+        tag: "rcu", tagLabel: "RCU",
+        q: "Item 12 KB, 4 reads/giây, eventually consistent. Cần bao nhiêu RCU?",
+        options: ["3 RCU", "6 RCU", "12 RCU", "4 RCU"],
+        correct: 1,
+        explain: "Strong: ceil(12/4)×4 = 12 RCU.\nEventual: 12 ÷ 2 = 6 RCU.",
+        calc: "Eventual = 12 ÷ 2 = 6"
+      },
+      {
+        tag: "mix", tagLabel: "GSI",
+        q: "PutItem 3 KB vào table + GSI projection ALL (~3 KB projected). 1 write/giây. Tổng WCU provisioned (table + GSI)?",
+        options: ["3 WCU", "6 WCU", "9 WCU", "3 WCU (chỉ table)"],
+        correct: 1,
+        explain: "GSI có WCU riêng.\nTable: ceil(3) = 3 WCU\nGSI: ceil(3) = 3 WCU\nTổng = 6 WCU",
+        calc: "3 (table) + 3 (GSI) = 6 WCU"
+      },
+      {
+        tag: "rcu", tagLabel: "RCU",
+        q: "Scan strong 200 items × 3 KB. FilterExpression chỉ trả 5 items. RCU tiêu thụ?",
+        options: ["200 RCU", "5 RCU", "15 RCU", "50 RCU"],
+        correct: 0,
+        explain: "Filter KHÔNG giảm RCU — vẫn scan hết 200 items.\n200 × ceil(3/4) = 200 × 1 = 200 RCU.",
+        calc: "200 × ceil(3/4) = 200 RCU (filter không ảnh hưởng)"
+      },
+      {
+        tag: "mix", tagLabel: "Tổng hợp",
+        q: "Trong 1 giây: 10× PutItem item 1.5 KB + 5× GetItem item 8 KB (strong). WCU và RCU tối thiểu?",
+        options: ["10 WCU + 5 RCU", "20 WCU + 10 RCU", "15 WCU + 20 RCU", "20 WCU + 20 RCU"],
+        correct: 1,
+        explain: "WCU: ceil(1.5)×10 = 2×10 = 20 WCU\nRCU: ceil(8/4)×5 = 2×5 = 10 RCU",
+        calc: "WCU=20, RCU=10 → 20 WCU + 10 RCU"
+      },
+      {
+        tag: "rcu", tagLabel: "RCU",
+        q: "Item 2 KB. Cần 1000 strongly consistent reads/giây. RCU provisioned tối thiểu?",
+        options: ["500 RCU", "1000 RCU", "250 RCU", "2000 RCU"],
+        correct: 1,
+        explain: "ceil(2/4) = 1 RCU/read.\n1000 × 1 = 1000 RCU.",
+        calc: "1000 × ceil(2/4) = 1000 RCU"
+      },
+      {
+        tag: "rcu", tagLabel: "RCU",
+        q: "Cùng item 2 KB, 1000 reads/giây nhưng eventually consistent. RCU?",
+        options: ["250 RCU", "500 RCU", "1000 RCU", "125 RCU"],
+        correct: 1,
+        explain: "Strong = 1000 RCU.\nEventual = 1000 ÷ 2 = 500 RCU.",
+        calc: "500 RCU"
+      },
+      {
+        tag: "wcu", tagLabel: "WCU",
+        q: "WCU có phân biệt strongly consistent vs eventually consistent không?",
+        options: [
+          "Có — eventual tốn nửa WCU",
+          "Không — write luôn 1 công thức ceil(KB)",
+          "Có — strong tốn gấp đôi",
+          "Chỉ TransactWrite mới có eventual"
+        ],
+        correct: 1,
+        explain: "WCU không có strong/eventual.\nChỉ RCU (read) mới chia 2 loại.\nWrite DynamoDB mặc định strongly consistent.",
+        calc: "WCU = ceil(KB) — không eventual"
+      }
+    ];
+
+    const LABELS = ["A", "B", "C", "D"];
+    const state = { answered: {}, correct: 0, wrong: 0 };
+
+    function render() {
+      const root = document.getElementById("quiz-root");
+      root.innerHTML = QUESTIONS.map((item, i) => {
+        const tagClass = item.tag === "wcu" ? "tag-wcu" : item.tag === "rcu" ? "tag-rcu" : "tag-mix";
+        return `
+          <article class="card" id="card-${i}" data-index="${i}">
+            <span class="tag ${tagClass}">${item.tagLabel}</span>
+            <div class="q-num">Câu ${i + 1} / ${QUESTIONS.length}</div>
+            <div class="q-text">${item.q}</div>
+            <div class="options" role="group" aria-label="Câu ${i + 1}">
+              ${item.options.map((opt, j) => `
+                <div class="option" data-q="${i}" data-opt="${j}" role="button" tabindex="0">
+                  <span class="option-label">${LABELS[j]}</span>
+                  <span class="option-text">${opt}</span>
+                </div>
+              `).join("")}
+            </div>
+            <div class="explain" id="explain-${i}">
+              <div class="explain-title">Giải thích</div>
+              <div class="explain-body">${item.explain.replace(/\n/g, "<br>")}</div>
+              <pre>${item.calc}</pre>
+            </div>
+          </article>`;
+      }).join("");
+
+      document.querySelectorAll(".option").forEach(el => {
+        el.addEventListener("click", () => onSelect(el));
+        el.addEventListener("keydown", e => {
+          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(el); }
+        });
+      });
+      updateStats();
+    }
+
+    function onSelect(el) {
+      const q = +el.dataset.q;
+      const opt = +el.dataset.opt;
+      if (state.answered[q] !== undefined) return;
+
+      const item = QUESTIONS[q];
+      const correct = opt === item.correct;
+      state.answered[q] = { chosen: opt, correct };
+      if (correct) state.correct++; else state.wrong++;
+
+      const card = document.getElementById(`card-${q}`);
+      card.classList.add(correct ? "answered-correct" : "answered-wrong");
+
+      card.querySelectorAll(".option").forEach((o, j) => {
+        o.classList.add("disabled");
+        if (j === opt) o.classList.add(correct ? "selected-correct" : "selected-wrong");
+        if (j === item.correct) o.classList.add("reveal-correct");
+      });
+
+      const ex = document.getElementById(`explain-${q}`);
+      ex.classList.add("show");
+      if (!correct) ex.classList.add("wrong-title");
+
+      updateStats();
+    }
+
+    function updateStats() {
+      const total = QUESTIONS.length;
+      const done = Object.keys(state.answered).length;
+      document.getElementById("total-count").textContent = total;
+      document.getElementById("correct-count").textContent = state.correct;
+      document.getElementById("wrong-count").textContent = state.wrong;
+      document.getElementById("pending-count").textContent = total - done;
+    }
+
+    document.getElementById("btn-reset").addEventListener("click", () => {
+      state.answered = {};
+      state.correct = 0;
+      state.wrong = 0;
+      render();
+    });
+
+    render();
+  </script>
+</body>
+</html>

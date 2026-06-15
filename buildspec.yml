@@ -1,0 +1,15 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 18
+    commands:
+      - echo "=== INSTALL PHASE OK ==="
+  pre_build:
+    commands:
+      - echo "=== PRE_BUILD OK ==="
+      - ./script-khong-ton-tai.sh
+  build:
+    commands:
+      - echo "=== BUILD - ban se khong thay dong nay ==="

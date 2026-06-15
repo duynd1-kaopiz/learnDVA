@@ -123,3 +123,4 @@ Trong reply cho user:
 
 - Lab hands-on: skill `aws-dva-lab-helper`
 - Chi tiết lab index: `.cursor/skills/aws-dva-lab-helper/labs-index.md`
+- Quiz MCQ tương tác (luyện tập có đáp án cố định): skill `dva-quiz-web` → `dva-exam-notes/quiz/`

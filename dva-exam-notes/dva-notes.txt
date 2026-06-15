@@ -53,6 +53,12 @@ MỤC LỤC NHANH
   Đáp án: 503 = no target; 502 = bad response; 504 = timeout
   Tip: "Không biết gửi đi đâu" → 503
 
+[Câu] Access control API Gateway — cơ chế KHÔNG hỗ trợ (NOT supported)
+  Yêu cầu đề: Lambda behind API GW; đề hỏi cơ chế kiểm soát truy cập nào API GW không hỗ trợ
+  Đáp án: STS — không phải authorizer/access mechanism của API Gateway
+  Tip: Hỗ trợ: IAM SigV4, Cognito User Pools, Lambda Authorizer, API Keys, Resource policy
+  Lỗi hay nhầm: Chọn IAM SigV4 — đây LÀ cơ chế hỗ trợ; STS chỉ service cấp temporary creds (dùng bởi IAM/role)
+
 --------------------------------------------------------------------------------
 2. LAMBDA
 --------------------------------------------------------------------------------
@@ -168,9 +174,15 @@ MỤC LỤC NHANH
   Đáp án: Lambda@Edge + origin request
   Tip: CloudFront Function chỉ viewer req/resp; origin request = cache miss
 
-[Câu] Origin Groups failover
-  Đáp án: Mỗi request thử primary trước; failover chỉ GET/HEAD/OPTIONS
-  Tip: Cache hit = không gọi origin; chỉ cần 2 origins
+[Câu] Origin Groups failover — video streaming HA (chọn 2)
+  Yêu cầu đề: CloudFront Origin Group primary + secondary; high availability / origin failover
+  Yêu cầu đề: Chọn 2 câu ĐÚNG về hành vi failover — không nhầm cache hit hay “all primary”
+  Đáp án (2): (1) Mỗi request mới vẫn thử primary trước — kể cả request trước đã failover sang secondary
+  Đáp án (2): Failover sang secondary chỉ khi HTTP method = GET, HEAD, OPTIONS (không POST/PUT/DELETE…)
+  Tip: Cache hit → trả từ edge cache, không gọi origin (SAI nếu nói route primary khi cache hit)
+  Tip: Origin group = 1 primary + 1 secondary — không phải “tất cả đều primary”
+  Tip: Chỉ cần ≥2 origins (1 group: primary + secondary) — không bắt buộc 3 origins
+  Lỗi hay nhầm: All origins primary; cache hit route primary origin
 
 [Câu] Auth offload (CF→ALB→EC2)
   Đáp án: Cognito User Pools trên ALB
@@ -213,13 +225,33 @@ MỤC LỤC NHANH
   Đáp án: IAM service role CodeBuild thiếu quyền ECR
   Tip: Authorization = IAM, không phải Security Group
 
-[Câu] Pull image từ ECR
-  Đáp án: aws ecr get-login + docker pull full URI
-  Tip: Không login bằng access key/secret; Execution Role pull trên Fargate
+[Câu] Pull image từ ECR — local test (chọn 2)
+  Yêu cầu đề: Developer pull Docker image từ repo ECR `demo` để test local
+  Yêu cầu đề: Chọn 2 lệnh bắt buộc — login registry rồi pull full URI
+  Đáp án (2): $(aws ecr get-login --no-include-email) + docker pull {account}.dkr.ecr.{region}.amazonaws.com/demo:latest
+  Tip: CLI v2 thực tế: aws ecr get-login-password | docker login … — exam vẫn hay đưa get-login
+  Tip: Không docker login -u $AWS_ACCESS_KEY_ID -p $AWS_SECRET_ACCESS_KEY (ECR dùng token tạm)
+  Tip: docker build = build local; aws docker push = không tồn tại
+  Lỗi hay nhầm: Login bằng access key/secret trực tiếp
 
 --------------------------------------------------------------------------------
 6. ELASTIC BEANSTALK
 --------------------------------------------------------------------------------
+
+[Câu] EB keywords — Application, Environment, Application Version
+  Yêu cầu đề: Phân biệt khái niệm cơ bản EB trước khi chọn deploy/migrate
+  Yêu cầu đề: Application = container logic; Environment = bản chạy thật có URL/health
+  Đáp án: Application chứa nhiều Environment + Application Version (zip code trên S3)
+  Tip: Saved Configuration = snapshot cấu hình YAML — khác Application Version (source code)
+  Tip: Save config path S3: resources/templates/{application-name}/
+
+[Câu] Environment tier — Web server vs Worker
+  Yêu cầu đề: Chọn loại environment khi create EB — web HTTP vs xử lý background
+  Yêu cầu đề: Worker nhận job từ SQS; Web server có URL public + ALB (Traffic splitting, Blue/Green web)
+  Đáp án: Web server (Standard) = HTTP/HTTPS cho user | Worker (SQS/HTTP) = poll SQS, không phục vụ web trực tiếp
+  Tip: Console: Environment tier → Web server environment / Worker environment
+  Tip: Saved Config YAML: EnvironmentTier Name WebServer hoặc Worker, Type Standard hoặc SQS/HTTP
+  Tip: Traffic splitting, ALB canary — chỉ Web server tier
 
 [Câu] 5 chiến lược deploy — tổng quan
   Yêu cầu đề: Zero downtime, rollback, canary, giữ capacity — chọn deployment policy
@@ -482,6 +514,13 @@ MỤC LỤC NHANH
   Đáp án: Cùng partition key → cùng shard; scale = split/merge shard
   Tip: 1 shard = 1 MB/s in, 2 MB/s out standard; hot key gây bottleneck
 
+[Câu] KCL trên EC2 — max instance sau split shard (6 → 10)
+  Yêu cầu đề: Stream split shard; app consumer dùng KCL trên EC2; hỏi tối đa bao nhiêu instance xử lý song song
+  Yêu cầu đề: Traffic tăng → admin split shard; consumer scale thế nào
+  Đáp án: 10 EC2 (bằng số shard hiện tại)
+  Tip: KCL lease 1 shard = 1 worker; max instance = số shard; min có thể 1 instance xử lý nhiều shard
+  Lỗi hay nhầm: Chọn 20 (2× shard) hoặc 6 (số shard cũ trước split)
+
 [Câu] Nhiều consumer lag — Enhanced Fan-out (EFO)
   Yêu cầu đề: Nhiều consumer chia 2 MB/s egress → lag
   Đáp án: EFO — dedicated 2 MB/s mỗi consumer
@@ -580,6 +619,13 @@ MỤC LỤC NHANH
 
 [Câu] EC2 video editing → S3
   Đáp án: Instance role, trust ec2.amazonaws.com
+
+[Câu] KMS ThrottlingException — bulk encrypt (chọn 2, MOST optimal)
+  Yêu cầu đề: App gửi bulk transaction đã mã hóa KMS sang app khác; sau bật encrypt → ThrottlingException
+  Yêu cầu đề: Đề hỏi fix tối ưu nhất — giảm gọi KMS + xử lý throttle tạm thời
+  Đáp án: (1) Backoff + retry giảm rate; (2) Data key caching — AWS Encryption SDK
+  Tip: Mỗi encrypt gọi GenerateDataKey → dễ vượt quota KMS; cache data key = ít gọi KMS nhất
+  Lỗi hay nhầm: S3 bucket-level key (SSE-KMS) — chỉ cho S3 at-rest, không phải app encrypt payload
 
 --------------------------------------------------------------------------------
 16. CI/CD
@@ -798,6 +844,12 @@ Task Execution Role     vs Task IAM Role (ECS)
 18. Detailed monitoring thay vì CodeBuild Agent local debug
 19. Đổi Logical ID CFN nghĩ rename — Remove + Add, DB cũ có thể xóa
 20. ECS Daemon Set cho X-Ray trên Fargate — Fargate dùng sidecar container
+21. EB cross-account: share Saved Config qua IAM role / Import by name — phải download file + S3 account B
+22. Origin Group: cache hit route primary / all origins primary — cache hit không gọi origin; chỉ 1 primary + 1 secondary
+23. ECR pull local: docker login -u access key -p secret — phải get-login / get-login-password + docker pull URI
+24. KCL max EC2 = 2× shard hoặc shard cũ — max worker song song = số shard hiện tại (1 shard = 1 lease)
+25. KMS throttle: S3 bucket-level key — chỉ SSE-KMS trên S3; app bulk encrypt dùng Encryption SDK data key caching + backoff/retry
+26. API Gateway access control: IAM SigV4 là hỗ trợ — STS không phải cơ chế authorizer riêng của API GW
 
 ================================================================================
   END OF FILE

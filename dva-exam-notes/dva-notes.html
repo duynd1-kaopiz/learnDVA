@@ -31,6 +31,7 @@
       font-size: 17px;
       line-height: 1.65;
       min-height: 100vh;
+      overflow-x: hidden;
     }
     header {
       background: linear-gradient(135deg, #fff 0%, #fff8eb 100%);
@@ -61,18 +62,29 @@
       background: var(--surface);
       border-bottom: 1px solid var(--border);
       box-shadow: var(--shadow);
+      width: 100%;
+      max-width: 100vw;
+      overflow: hidden;
     }
     .tabs-bar {
       display: flex;
       gap: .25rem;
       padding: .6rem 1rem;
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
       overflow-x: auto;
+      overflow-y: hidden;
+      scroll-behavior: smooth;
       scrollbar-width: thin;
-      scrollbar-color: var(--accent) transparent;
+      scrollbar-color: var(--accent) #e5e7eb;
       -webkit-overflow-scrolling: touch;
+      overscroll-behavior-x: contain;
     }
-    .tabs-bar::-webkit-scrollbar { height: 4px; }
+    .tabs-bar::-webkit-scrollbar { height: 8px; }
+    .tabs-bar::-webkit-scrollbar-track { background: #e5e7eb; border-radius: 4px; }
     .tabs-bar::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 4px; }
+    .tabs-bar::-webkit-scrollbar-thumb:hover { background: var(--accent-dark); }
     .tab-btn {
       flex-shrink: 0;
       border: 1px solid var(--border);
@@ -295,7 +307,7 @@
 </header>
 
 <div class="tabs-wrapper">
-  <div class="tabs-bar" role="tablist">
+  <div class="tabs-bar" id="tabs-bar" role="tablist">
     <button class="tab-btn active" data-tab="api-gateway" role="tab">API Gateway</button>
     <button class="tab-btn" data-tab="lambda" role="tab">Lambda</button>
     <button class="tab-btn" data-tab="s3" role="tab">S3</button>
@@ -324,7 +336,7 @@
 <main>
 
   <div id="api-gateway" class="tab-panel active" role="tabpanel">
-    <div class="panel-header"><h2>API Gateway</h2><span class="badge">5 câu</span></div>
+    <div class="panel-header"><h2>API Gateway</h2><span class="badge">6 câu</span></div>
     <div class="card">
       <div class="q">API versioning (v1/v2/test)</div>
       <div class="req">
@@ -404,6 +416,41 @@
   V -->|OK| OK[200 OK]</pre>
       </div>
       <span class="tip">"Không biết gửi đi đâu" → 503</span>
+    </div>
+
+    <div class="card">
+      <div class="q">Access control — cơ chế API Gateway KHÔNG hỗ trợ</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Lambda invoke qua API Gateway — cần <em>kiểm soát ai được gọi</em></li>
+          <li>Đề hỏi: cơ chế nào <strong>NOT supported</strong> (không phải hỏi cơ chế nào dùng được)</li>
+          <li>Bẫy: nhầm IAM SigV4 là không hỗ trợ — thực ra SigV4 là cơ chế chính thức</li>
+        </ul>
+      </div>
+      <div class="a">STS — Security Token Service không phải authorizer/access option của API Gateway</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Auth API Gateway (REST)</div>
+        <pre class="mermaid">flowchart TB
+  subgraph OK[API Gateway hỗ trợ]
+    IAM[IAM authorization SigV4]
+    COG[Cognito User Pools]
+    LA[Lambda Authorizer]
+    KEY[API Keys + Usage plan]
+    RP[Resource policy]
+  end
+  subgraph NO[Không phải cơ chế API GW]
+    STS[STS — cấp temporary creds cho IAM/role]
+  end
+  C[Client] --> OK
+  STS -.->|backend của IAM| IAM</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">IAM + SigV4: client ký request bằng AWS credentials → API GW verify → allow/deny</span>
+        <span class="tip">Cognito User Pools: JWT từ user pool</span>
+        <span class="tip">Lambda Authorizer: custom logic (header/token lookup)</span>
+        <span class="tip">STS ≠ authorizer — chỉ service AssumeRole/GetSessionToken; exam hay liệt kê STS để đ confuser</span>
+      </div>
     </div>
   </div>
 
@@ -747,17 +794,31 @@
       <span class="tip">CloudFront Function chỉ viewer req/resp</span>
     </div>
     <div class="card">
-      <div class="q">Origin Groups failover</div>
-      <div class="a">Mỗi request thử primary; failover chỉ GET/HEAD/OPTIONS</div>
+      <div class="q">Origin Groups failover — video streaming HA (chọn 2)</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>CloudFront + <em>Origin Group</em> (primary + secondary) cho HA / origin failover</li>
+          <li>Chọn <em>2 câu đúng</em> về hành vi — hay bẫy cache hit và “all primary”</li>
+          <li>Video streaming → failover nhanh khi primary 5xx / timeout</li>
+        </ul>
+      </div>
+      <div class="a">(1) Mỗi request mới luôn thử primary trước — kể cả request trước đã failover. (2) Failover chỉ với GET, HEAD, OPTIONS.</div>
       <div class="diagram">
         <div class="diagram-label">Sơ đồ — Origin Group failover</div>
         <pre class="mermaid">flowchart TD
-  R[Request] --> CF[CloudFront]
-  CF --> P[Primary origin S3]
-  P -->|5xx / timeout| S[Secondary origin]
-  P -->|OK| OK[Trả về user]
+  R[Request mới] --> H{Cache hit?}
+  H -->|Yes| CACHE[Trả từ edge — không gọi origin]
+  H -->|No MISS| P[Primary origin]
+  P -->|2xx/3xx OK| OK[Trả user]
+  P -->|5xx timeout connect fail| S[Secondary origin]
   S --> OK
-  W[POST/PUT] -.->|không failover| P</pre>
+  POST[POST PUT DELETE] -.->|không failover| P</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">Không “sticky” secondary — request tiếp theo vẫn thử primary lại</span>
+        <span class="tip">SAI: all origins primary | cache hit route primary | bắt buộc 3 origins</span>
+        <span class="tip">Cần ≥2 origins trong distribution; group = 1 primary + 1 secondary</span>
       </div>
     </div>
     <div class="card">
@@ -881,13 +942,88 @@
       <div class="a">IAM service role CodeBuild thiếu quyền ECR</div>
     </div>
     <div class="card">
-      <div class="q">Pull image từ ECR</div>
-      <div class="a">aws ecr get-login + docker pull full URI</div>
+      <div class="q">Pull image từ ECR — local test (chọn 2)</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Pull image repo ECR <em>demo</em> về máy local test</li>
+          <li>Chọn <em>2 lệnh</em>: authenticate Docker với ECR + pull full URI</li>
+          <li>Bẫy: login bằng access key/secret; docker build; aws docker push</li>
+        </ul>
+      </div>
+      <div class="a">$(aws ecr get-login --no-include-email) + docker pull {account}.dkr.ecr.{region}.amazonaws.com/demo:latest</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Pull ECR local</div>
+        <pre class="mermaid">flowchart LR
+  DEV[Developer máy local] --> LOGIN[ecr get-login / get-login-password]
+  LOGIN --> DK[docker login registry ECR]
+  DK --> PULL[docker pull full URI demo:latest]
+  PULL --> RUN[docker run test local]</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">CLI v2: aws ecr get-login-password --region R | docker login --username AWS --password-stdin URI</span>
+        <span class="tip">Full URI = account.dkr.ecr.region.amazonaws.com/repo:tag</span>
+      </div>
     </div>
   </div>
 
   <div id="beanstalk" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>Elastic Beanstalk</h2><span class="badge">13 câu</span></div>
+    <div class="panel-header"><h2>Elastic Beanstalk</h2><span class="badge">15 câu</span></div>
+    <div class="card">
+      <div class="q">EB keywords — Application, Environment, Application Version</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Phân biệt khái niệm EB trước khi chọn deploy policy / migrate cross-account</li>
+          <li><em>Application</em> = tên app + chứa versions &amp; environments</li>
+          <li><em>Environment</em> = môi trường chạy thật (URL, EC2, health Ok/Severe)</li>
+        </ul>
+      </div>
+      <div class="a">Application → nhiều Environment + Application Version (zip code). Saved Configuration = file YAML cấu hình — khác Application Version.</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Cấu trúc EB</div>
+        <pre class="mermaid">flowchart TD
+  APP[Application team-a-shop]
+  APP --> VER[Application Version v1 v2 zip code]
+  APP --> ENV1[Environment dev]
+  APP --> ENV2[Environment prod]
+  ENV2 --> SAVED[Saved Configuration YAML trên S3]
+  S3PATH[resources/templates/app-name/] -.-> SAVED</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">Tạo EB → bucket elasticbeanstalk-region-account-id tự động</span>
+        <span class="tip">Save configuration chỉ có khi Actions → Save configuration — không tự sinh khi create env</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="q">Environment tier — Web server vs Worker</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Create environment: chọn <em>Web server</em> hay <em>Worker</em></li>
+          <li>Web = HTTP/HTTPS, URL public, ALB — phù hợp Traffic splitting / canary</li>
+          <li>Worker = xử lý background — poll message từ <em>SQS</em>, không phục vụ user qua web</li>
+        </ul>
+      </div>
+      <div class="a">Web server (Standard) | Worker (SQS/HTTP) — chọn lúc create environment, khó đổi sau</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — 2 Environment tier</div>
+        <pre class="mermaid">flowchart LR
+  subgraph WEB[Web server tier]
+    USER[User browser] --> ALB[ALB]
+    ALB --> EC2W[EC2 chạy web app]
+  end
+  subgraph WRK[Worker tier]
+    SQS[SQS queue] --> EC2K[EC2 worker poll message]
+  end</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">Saved Config YAML: EnvironmentTier → Name WebServer hoặc Worker</span>
+        <span class="tip">Deploy policy ALB canary / Traffic splitting — chỉ Web server, không Worker</span>
+      </div>
+    </div>
+
     <div class="card">
       <div class="q">5 chiến lược deploy — tổng quan</div>
       <div class="req">
@@ -912,8 +1048,29 @@
     </div>
 
     <div class="card">
-      <div class="q">Cross-account migration</div>
-      <div class="a">Saved Config → download → sửa → upload S3 account B</div>
+      <div class="q">Migrate EB environment Team A → Team B (cross-account)</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Bối cảnh: công ty nhiều AWS account; PM muốn chuyển <em>Elastic Beanstalk environment</em> sang account khác</li>
+          <li>Đề hỏi: quy trình Developer nên làm — <em>không phải</em> "không thể migrate" hay Import tích hợp cross-account</li>
+          <li>Bẫy: Export + share IAM role account B → Import thấy saved config (SAI)</li>
+        </ul>
+      </div>
+      <div class="a">Saved configuration (Team A) → download file → sửa VPC/subnet/IAM/key… → upload S3 (Team B) → Create environment from Saved Configurations (Team B)</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Cross-account EB migration</div>
+        <pre class="mermaid">flowchart LR
+  A[Team A: Save configuration] --> DL[Download YAML]
+  DL --> EDIT[Sửa account-specific trên máy local]
+  EDIT --> S3[Upload S3 bucket Team B]
+  S3 --> B[Team B: Create env from Saved Config]
+  WRONG[SAI: IAM role share / Import by name] -.->|không có| B</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">Saved Config = file trên S3 — không có luồng Import thấy config account khác trong console</span>
+        <span class="tip">Phải sửa: VPC, subnet, security group, IAM instance profile, key pair, cert ARN…</span>
+      </div>
     </div>
     <div class="card">
       <div class="q">ELB unhealthy, ASG không thay</div>
@@ -1190,6 +1347,10 @@
 
   <div id="dynamodb" class="tab-panel" role="tabpanel">
     <div class="panel-header"><h2>DynamoDB</h2><span class="badge">16 câu</span></div>
+    <div class="card" style="border-left: 4px solid #0073bb;">
+      <div class="q">Luyện tập RCU / WCU (quiz tương tác)</div>
+      <div class="a"><a href="quiz/index.html" style="color:#0073bb;font-weight:700;">Mở trang Practice Quiz →</a> · <a href="quiz/dynamodb-rcu-wcu.html" style="color:#0073bb;">RCU/WCU 22 câu</a> · 4 đáp án/câu + giải thích khi chọn</div>
+    </div>
     <div class="card">
       <div class="q">Latency cao, user global (chọn 2)</div>
       <div class="req">
@@ -1712,7 +1873,7 @@
   </div>
 
   <div id="kinesis" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>Kinesis Data Streams / Firehose</h2><span class="badge">8 câu</span></div>
+    <div class="panel-header"><h2>Kinesis Data Streams / Firehose</h2><span class="badge">9 câu</span></div>
 
     <div class="card">
       <div class="q">Data Streams vs Firehose — chọn service nào</div>
@@ -1768,6 +1929,39 @@
       <div class="tips">
         <span class="tip">1 shard: ingest 1 MB/s hoặc 1000 records/s; egress standard 2 MB/s</span>
         <span class="tip">Hot partition key → 1 shard quá tải dù có nhiều shard khác</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="q">KCL trên EC2 — max instance sau split shard (6 → 10)</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Traffic tăng → admin <em>split shard</em> (vd. 6 → 10 shard)</li>
+          <li>Consumer app chạy <em>KCL trên EC2</em> (worker fleet)</li>
+          <li>Đề hỏi: <em>tối đa</em> bao nhiêu EC2 xử lý song song</li>
+        </ul>
+      </div>
+      <div class="a">10 EC2 — bằng số shard hiện tại (10)</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — KCL shard lease</div>
+        <pre class="mermaid">flowchart LR
+  subgraph Stream[10 shards]
+    S1[Shard 1]
+    S2[Shard 2]
+    S10[Shard 10]
+  end
+  subgraph Workers[EC2 KCL workers - max 10 active]
+    W1[Worker 1] -->|lease| S1
+    W2[Worker 2] -->|lease| S2
+    W10[Worker 10] -->|lease| S10
+  end
+  IDLE[Worker 11-20] -.->|không có shard trống| X[Idle]</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">KCL: 1 shard chỉ 1 worker giữ lease (DynamoDB) tại một thời điểm → max parallel = số shard</span>
+        <span class="tip">Min có thể 1 EC2 xử lý nhiều shard; đề hỏi MAX thì = số shard, không phải số shard cũ (6)</span>
+        <span class="tip">Bẫy: chọn 2× shard (20) — KCL không cho 2 worker cùng xử lý 1 shard trong cùng consumer app</span>
       </div>
     </div>
 
@@ -2068,7 +2262,7 @@
   </div>
 
   <div id="iam" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>IAM / Security</h2><span class="badge">2 câu</span></div>
+    <div class="panel-header"><h2>IAM / Security</h2><span class="badge">3 câu</span></div>
     <div class="card">
       <div class="q">Cross-account token + resource policy</div>
       <div class="a">Secrets Manager</div>
@@ -2084,6 +2278,41 @@
     <div class="card">
       <div class="q">EC2 video editing → S3</div>
       <div class="a">Instance role, trust ec2.amazonaws.com</div>
+    </div>
+
+    <div class="card">
+      <div class="q">KMS ThrottlingException — bulk encrypt app (chọn 2)</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>E-commerce gửi <em>bulk transaction</em> sang app kế toán, mỗi batch <em>mã hóa bằng KMS</em></li>
+          <li>Sau bật encrypt → <strong>ThrottlingException</strong> từ KMS</li>
+          <li>Đề hỏi fix <em>MOST optimally</em> — chọn 2</li>
+        </ul>
+      </div>
+      <div class="a">Backoff + retry giảm rate · Data key caching (AWS Encryption SDK)</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Bulk encrypt tối ưu</div>
+        <pre class="mermaid">flowchart LR
+  subgraph Bad[Mỗi record gọi KMS]
+    T1[Txn 1] --> KMS1[GenerateDataKey]
+    T2[Txn 2] --> KMS2[GenerateDataKey]
+    T3[Txn N] --> KMS3[ThrottlingException]
+  end
+  subgraph Good[Encryption SDK + cache]
+    DK[GenerateDataKey 1 lần] --> CACHE[(Data key cache TTL)]
+    CACHE --> E1[Encrypt txn 1..N local]
+    CACHE -->|hết TTL / max bytes| DK2[GenerateDataKey mới]
+  end
+  RETRY[Backoff retry] -.->|tạm throttle| KMS1</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">GenerateDataKey / Encrypt có quota — bulk = gọi quá nhanh → ThrottlingException</span>
+        <span class="tip">Data key caching: 1 data key mã hóa nhiều record trong TTL → giảm KMS call mạnh nhất (optimal)</span>
+        <span class="tip">Backoff + exponential retry: chuẩn AWS khi bị throttle tạm thời</span>
+        <span class="tip">SAI: S3 bucket-level key — chỉ giảm KMS call khi S3 SSE-KMS, không liên quan app encrypt payload</span>
+        <span class="tip">SAI: CloudTrail → CloudWatch — audit/monitor, không fix throttle; Support quota = chậm, không optimal nhất</span>
+      </div>
     </div>
   </div>
 
@@ -2795,8 +3024,11 @@
   </div>
 
   <div id="mistakes" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>Lỗi hay chọn nhầm</h2><span class="badge">21 mục</span></div>
+    <div class="panel-header"><h2>Lỗi hay chọn nhầm</h2><span class="badge">27 mục</span></div>
     <div class="mistakes">
+      <span class="item">API Gateway NOT supported — chọn IAM SigV4 (SAI, có hỗ trợ); đáp án đúng thường là STS (không phải authorizer riêng)</span>
+      <span class="item">KMS ThrottlingException app encrypt — bucket-level key SSE-KMS chỉ cho S3, không phải app bulk encrypt; dùng Encryption SDK data key cache</span>
+      <span class="item">KCL max EC2 = 2× số shard hoặc số shard cũ — max parallel worker = số shard hiện tại (1 shard = 1 lease)</span>
       <span class="item">CloudFront Function + viewer request thay vì Lambda@Edge + origin request</span>
       <span class="item">S3 Standard-IA thay vì EFS Standard-IA</span>
       <span class="item">Multi-AZ async — Multi-AZ là SYNCHRONOUS</span>
@@ -2817,6 +3049,9 @@
       <span class="item">Detailed monitoring thay vì CodeBuild Agent local debug buildspec</span>
       <span class="item">Đổi Logical ID CFN (MyDB → MyDatabase) nghĩ là rename — thực tế Remove + Add, DB cũ có thể xóa</span>
       <span class="item">ECS Daemon Set cho X-Ray trên Fargate — Daemon Set chỉ EC2 launch type; Fargate dùng sidecar</span>
+      <span class="item">EB cross-account: share Saved Config qua IAM role / Import by name — phải download file + upload S3 account B</span>
+      <span class="item">Origin Group failover: cache hit route primary / all origins primary — cache hit không gọi origin</span>
+      <span class="item">ECR pull: docker login -u access key -p secret — phải ecr get-login + docker pull full URI</span>
     </div>
 
 </main>
@@ -2846,6 +3081,28 @@
   const tabs = document.querySelectorAll('.tab-btn');
   const panels = document.querySelectorAll('.tab-panel');
   const rendered = new WeakSet();
+  const tabsBar = document.getElementById('tabs-bar');
+
+  function scrollTabIntoView(btn) {
+    if (!tabsBar || !btn) return;
+    const barRect = tabsBar.getBoundingClientRect();
+    const btnRect = btn.getBoundingClientRect();
+    if (btnRect.left < barRect.left) {
+      tabsBar.scrollLeft -= barRect.left - btnRect.left + 12;
+    } else if (btnRect.right > barRect.right) {
+      tabsBar.scrollLeft += btnRect.right - barRect.right + 12;
+    }
+  }
+
+  if (tabsBar) {
+    tabsBar.addEventListener('wheel', (e) => {
+      if (tabsBar.scrollWidth <= tabsBar.clientWidth) return;
+      if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+        e.preventDefault();
+        tabsBar.scrollLeft += e.deltaY;
+      }
+    }, { passive: false });
+  }
 
   async function renderPanelDiagrams(panel) {
     if (!panel || rendered.has(panel)) return;
@@ -2860,6 +3117,8 @@
   async function activateTab(id) {
     tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === id));
     panels.forEach(p => p.classList.toggle('active', p.id === id));
+    const activeBtn = document.querySelector(`.tab-btn[data-tab="${id}"]`);
+    scrollTabIntoView(activeBtn);
     const panel = document.getElementById(id);
     if (panel) await renderPanelDiagrams(panel);
     history.replaceState(null, '', '#' + id);
