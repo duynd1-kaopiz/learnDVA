@@ -299,7 +299,7 @@
   <h1>AWS <span>DVA-C02</span> — Ghi chú ôn thi</h1>
   <p>Tổng hợp câu hỏi, đáp án và tip nhớ theo service</p>
   <div class="meta">
-    <span>Cập nhật: 2026-06-13</span>
+    <span>Cập nhật: 2026-06-15</span>
     <span>Có sơ đồ Mermaid</span>
     <span>Skill: dva-exam-notes</span>
     <span>dva-notes.txt</span>
@@ -517,7 +517,7 @@
   </div>
 
   <div id="s3" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>S3</h2><span class="badge">17 câu</span></div>
+    <div class="panel-header"><h2>S3</h2><span class="badge">18 câu</span></div>
     <div class="card">
       <div class="q">Private bucket, truy cập tạm thời</div>
       <div class="req">
@@ -589,8 +589,17 @@
       <div class="a">S3 Object Ownership (Bucket owner enforced)</div>
     </div>
     <div class="card">
-      <div class="q">Subset CSV</div>
-      <div class="a">S3 Select</div>
+      <div class="q">Subset CSV — 1 tháng, 3/10 cột, minimize cost</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Dataset CSV lớn trên S3; cần <em>subset</em> (1 tháng, vài cột)</li>
+          <li>Minimize <em>compute</em> và <em>network</em> — không tải cả file</li>
+          <li>Bẫy: Analytics, Inventory, Access Logs</li>
+        </ul>
+      </div>
+      <div class="a">S3 Select — SQL filter/projection trên S3</div>
+      <div class="tips"><span class="tip">Analytics = storage class; Inventory = metadata list; Access Logs = audit</span></div>
     </div>
     <div class="card">
       <div class="q">S3 access control (chọn 2)</div>
@@ -774,10 +783,31 @@
       </div>
       <span class="tip">Không transition ngược Glacier → Standard trực tiếp; cần restore copy mới</span>
     </div>
+    <div class="card">
+      <div class="q">On-prem upload ~2 GB lên S3 — nhanh nhất</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Bối cảnh: data center on-premises, file nén ~2 GB/ngày backup lên S3</li>
+          <li>Đề hỏi: cách upload <em>nhanh nhất</em></li>
+          <li>Bẫy: chỉ multipart; single PUT; FTP qua EC2 relay</li>
+        </ul>
+      </div>
+      <div class="a">Multipart upload + S3 Transfer Acceleration</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — upload từ on-prem</div>
+        <pre class="mermaid">flowchart LR
+  ONPREM[On-premises] --> MP[Multipart parallel parts]
+  MP --> TA[s3-accelerate endpoint]
+  TA --> EDGE[CloudFront edge]
+  EDGE --> S3[S3 bucket]</pre>
+      </div>
+      <div class="tips"><span class="tip">File GB + xa region → multipart VÀ Transfer Acceleration; TA ≠ CRR ≠ CloudFront cache</span></div>
+    </div>
   </div>
 
   <div id="cloudfront" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>CloudFront</h2><span class="badge">3 câu</span></div>
+    <div class="panel-header"><h2>CloudFront</h2><span class="badge">5 câu</span></div>
     <div class="card">
       <div class="q">Route S3 theo country (cache miss)</div>
       <div class="a">Lambda@Edge + origin request</div>
@@ -832,6 +862,49 @@
   ALB -->|đã login| EC2[EC2 app]
   ALB -->|chưa login| COG[Cognito login page]</pre>
       </div>
+    </div>
+    <div class="card">
+      <div class="q">EC2 ?lang= — CloudFront luôn 1 ngôn ngữ</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Website EC2 đa ngôn ngữ qua <em>query string</em> (vd <code>?lang=vi</code>)</li>
+          <li>Truy cập EC2 trực tiếp đúng; qua CloudFront luôn 1 ngôn ngữ</li>
+          <li>Bẫy: cache theo headers; giảm TTL; cache None</li>
+        </ul>
+      </div>
+      <div class="a">Cache policy — Query string forwarding and caching; whitelist <code>lang</code></div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — cache key theo query string</div>
+        <pre class="mermaid">flowchart LR
+  U1["/?lang=en"] --> CF[CloudFront]
+  U2["/?lang=vi"] --> CF
+  CF --> K1[Cache key en]
+  CF --> K2[Cache key vi]
+  K1 --> EC2[EC2 origin]
+  K2 --> EC2</pre>
+      </div>
+      <div class="tips"><span class="tip">Query string ≠ header; sau đổi policy → invalidation /*</span></div>
+    </div>
+    <div class="card">
+      <div class="q">Static S3 + dynamic ALB — latency global</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Static content S3 + dynamic content ALB; user toàn cầu</li>
+          <li>Minimize latency cho <em>cả hai</em> loại nội dung</li>
+          <li>Bẫy: Global Accelerator; Lambda@Edge; Origin Groups gộp request</li>
+        </ul>
+      </div>
+      <div class="a">CloudFront multiple origins — cache static S3, forward dynamic ALB</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — multi-origin CloudFront</div>
+        <pre class="mermaid">flowchart LR
+  U[User global] --> CF[CloudFront edge]
+  CF -->|/static/* cache| S3[(S3 static)]
+  CF -->|/api/* dynamic| ALB[ALB app]</pre>
+      </div>
+      <div class="tips"><span class="tip">GA = network accelerator TCP/UDP; CF = CDN HTTP cache + multi-origin</span></div>
     </div>
   </div>
 
@@ -968,7 +1041,7 @@
   </div>
 
   <div id="beanstalk" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>Elastic Beanstalk</h2><span class="badge">15 câu</span></div>
+    <div class="panel-header"><h2>Elastic Beanstalk</h2><span class="badge">17 câu</span></div>
     <div class="card">
       <div class="q">EB keywords — Application, Environment, Application Version</div>
       <div class="req">
@@ -1267,10 +1340,53 @@
       <div class="q">3 containers trên 1 EC2</div>
       <div class="a">Docker multi-container (Dockerrun.aws.json v2)</div>
     </div>
+    <div class="card">
+      <div class="q">EB HTTPS endpoint — in-flight encryption</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Bối cảnh: EB environment đang HTTP, cần <em>HTTPS</em> giữa client và web server</li>
+          <li>Đề hỏi: phải làm gì để setup HTTPS trên Beanstalk</li>
+          <li>Bẫy: Health check, CFN template riêng, mở port 80 security group</li>
+        </ul>
+      </div>
+      <div class="a">Config file trong <code>.ebextensions</code> cấu hình Load Balancer (443 + ACM)</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — HTTPS trên EB</div>
+        <pre class="mermaid">flowchart LR
+  C[Client HTTPS] --> ALB[ALB listener 443 + ACM cert]
+  ALB -->|HTTP nội bộ| EC2[EC2 instances]
+  ZIP[ZIP + .ebextensions] -->|deploy| EB[Elastic Beanstalk]
+  EB --> ALB</pre>
+      </div>
+      <div class="tips"><span class="tip">aws:elbv2:listener:443 + SSLCertificateArns; cert ACM cùng region; cần preset có ALB</span></div>
+    </div>
+    <div class="card">
+      <div class="q">ASP.NET — dev + load test trên EB</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Nhiều version/môi trường: dev, test, load test song song</li>
+          <li>Load test cần cấu hình <em>gần production</em></li>
+          <li>Bẫy: ALB hostname routing; chỉ 1 dev env; Ansible 1 env</li>
+        </ul>
+      </div>
+      <div class="a">1 Application — env dev (single instance) + env load-test (production-like)</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — nhiều EB environment</div>
+        <pre class="mermaid">flowchart TB
+  APP[EB Application ASP.NET]
+  APP --> DEV[dev-env single instance]
+  APP --> LT[loadtest-env HA gần prod]
+  VER[Application versions] --> DEV
+  VER --> LT</pre>
+      </div>
+      <div class="tips"><span class="tip">Environment = URL + capacity + config; không cần ALB riêng route hostname</span></div>
+    </div>
   </div>
 
   <div id="ec2" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>EC2 / Auto Scaling / ELB</h2><span class="badge">6 câu</span></div>
+    <div class="panel-header"><h2>EC2 / Auto Scaling / ELB</h2><span class="badge">7 câu</span></div>
     <div class="card">
       <div class="q">Spot + On-Demand + CodeDeploy agent</div>
       <div class="a">Launch Template + User data</div>
@@ -1309,6 +1425,29 @@
     <div class="card">
       <div class="q">DeleteOnTermination khi running</div>
       <div class="a">CLI modify-instance-attribute</div>
+    </div>
+    <div class="card">
+      <div class="q">EC2 — response time app + SNS alarm (chọn 2)</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Bối cảnh: app business-critical trên EC2, cần theo dõi <em>average response time</em></li>
+          <li>Đề hỏi: chọn <em>2 bước kết hợp</em> — thu thập custom metric + alarm gửi manager qua SNS</li>
+          <li>Bẫy: EventBridge rule thay Alarm; SSM Agent thay CloudWatch Agent; Inspector đọc log</li>
+        </ul>
+      </div>
+      <div class="a">CloudWatch Alarm → SNS; App log response time + CloudWatch Agent + Metric filter</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — custom metric từ log EC2</div>
+        <pre class="mermaid">flowchart LR
+  APP[App ghi response_time vào log file] --> AGENT[CloudWatch Agent]
+  AGENT --> LOGS[CloudWatch Logs]
+  LOGS --> MF[Metric filter]
+  MF --> MET[Custom metric]
+  MET --> ALM[CloudWatch Alarm Average]
+  ALM -->|vượt threshold| SNS[SNS → manager]</pre>
+      </div>
+      <div class="tips"><span class="tip">Custom app metric = Log + Agent + Metric filter; alarm metric = CloudWatch Alarm + SNS (không phải EventBridge)</span></div>
     </div>
   </div>
 
@@ -1873,7 +2012,7 @@
   </div>
 
   <div id="kinesis" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>Kinesis Data Streams / Firehose</h2><span class="badge">9 câu</span></div>
+    <div class="panel-header"><h2>Kinesis Data Streams / Firehose</h2><span class="badge">10 câu</span></div>
 
     <div class="card">
       <div class="q">Data Streams vs Firehose — chọn service nào</div>
@@ -1930,6 +2069,28 @@
         <span class="tip">1 shard: ingest 1 MB/s hoặc 1000 records/s; egress standard 2 MB/s</span>
         <span class="tip">Hot partition key → 1 shard quá tải dù có nhiều shard khác</span>
       </div>
+    </div>
+
+    <div class="card">
+      <div class="q">3 MB/s tổng vẫn ProvisionedThroughputExceeded</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>10 shard (capacity ~10 MB/s) nhưng chỉ gửi ~3 MB/s tổng</li>
+          <li>Metric utilization thấp nhưng <code>ProvisionedThroughputExceededException</code> liên tục</li>
+          <li>Bẫy: retention dài; quá nhiều shard; metric chậm</li>
+        </ul>
+      </div>
+      <div class="a">Partition key không phân tán — hot shard vượt 1 MB/s</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — hot shard</div>
+        <pre class="mermaid">flowchart LR
+  P[3 MB/s total] --> S1[Shard 1 hot 2.8 MB/s]
+  P --> S2[Shard 2 idle]
+  P --> S10[Shard 10 idle]
+  S1 -->|&gt;1 MB/s| ERR[ProvisionedThroughputExceeded]</pre>
+      </div>
+      <div class="tips"><span class="tip">Throughput limit theo từng shard; metric stream-level có thể che hot key</span></div>
     </div>
 
     <div class="card">
@@ -2125,7 +2286,7 @@
   </div>
 
   <div id="elasticache" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>ElastiCache — Redis / Memcached</h2><span class="badge">7 câu</span></div>
+    <div class="panel-header"><h2>ElastiCache — Redis / Memcached</h2><span class="badge">9 câu</span></div>
 
     <div class="card">
       <div class="q">Redis vs Memcached — tổng quan</div>
@@ -2236,6 +2397,48 @@
     <div class="card">
       <div class="q">Stale OK ≤ 1 phút</div>
       <div class="a">Lazy Loading + TTL</div>
+    </div>
+    <div class="card">
+      <div class="q">Redis cấu hình — chọn 2 đúng</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>ElastiCache Redis làm cache cho relational DB</li>
+          <li>Chọn <em>2 phát biểu đúng</em> về cấu hình cluster/replica</li>
+          <li>Bẫy: replica scale write; sync/async đảo ngược; không replica không mất data</li>
+        </ul>
+      </div>
+      <div class="a">(1) Mọi node cùng region; (2) Cluster mode ON → không promote replica thủ công</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — replica vs write</div>
+        <pre class="mermaid">flowchart LR
+  APP[App write] --> P[Primary]
+  P -->|async| R[Replica read only]
+  APP2[App read] --> R
+  SCALEW[Scale write = thêm shard] -.-> P</pre>
+      </div>
+      <div class="tips"><span class="tip">Replica = read scale; replication async; cross-region = Global Datastore</span></div>
+    </div>
+    <div class="card">
+      <div class="q">Geospatial + query + scale ngang — RDS</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Cache layer: <em>geospatial</em>, <em>query</em>, <em>horizontal scale</em></li>
+          <li>Database vẫn là <em>RDS</em> — không migrate</li>
+          <li>Bẫy: Redis cluster OFF; DynamoDB+DAX; CloudFront</li>
+        </ul>
+      </div>
+      <div class="a">ElastiCache Redis cluster mode <strong>enabled</strong></div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Redis cluster mode</div>
+        <pre class="mermaid">flowchart LR
+  APP[App] --> REDIS[ElastiCache Redis cluster mode ON]
+  REDIS -->|GEOADD GEORADIUS| GEO[Geospatial]
+  REDIS -->|shards| SCALE[Horizontal scale write]
+  APP --> RDS[(RDS)]</pre>
+      </div>
+      <div class="tips"><span class="tip">Cluster OFF = replica read only; DAX chỉ DynamoDB; CloudFront = CDN edge</span></div>
     </div>
   </div>
 

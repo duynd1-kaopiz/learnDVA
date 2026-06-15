@@ -1,5 +1,5 @@
 ================================================================================
-  AWS DVA-C02 — GHI CHÚ ÔN THI (cập nhật: 2026-06-13)
+  AWS DVA-C02 — GHI CHÚ ÔN THI (cập nhật: 2026-06-15)
   File: dva-exam-notes/dva-notes.txt
   Cập nhật tự động khi giải câu hỏi DVA qua skill dva-exam-notes
 ================================================================================
@@ -118,8 +118,10 @@ MỤC LỤC NHANH
   Tip: CORS/Access Analyzer không đổi ownership
 
 [Câu] Subset CSV (1 tháng, 3 cột)
+  Yêu cầu đề: CSV lớn trên S3; lấy 1 tháng + 3/10 cột; minimize compute & network cost
   Đáp án: S3 Select
-  Tip: Analytics/Inventory/Access Logs không đọc nội dung
+  Tip: Filter/projection trên S3 — không tải cả file; Analytics/Inventory/Access Logs không query nội dung CSV
+  Lỗi hay nhầm: S3 Analytics (storage class); Inventory (metadata); Access Logs (audit)
 
 [Câu] S3 access control (chọn 2)
   Đáp án: Bucket policy + IAM; Pre-signed URL + ACLs
@@ -128,6 +130,13 @@ MỤC LỤC NHANH
 [Câu] Transfer Acceleration
   Đáp án: Tăng tốc upload/download từ xa qua edge
   Tip: Không replicate; khác CloudFront cache
+
+[Câu] On-prem upload file nén ~2 GB lên S3 backup hàng ngày — nhanh nhất
+  Yêu cầu đề: Data center on-premises; file ~2 GB/ngày; hỏi cách upload S3 nhanh nhất
+  Yêu cầu đề: File lớn + đường truyền từ xa → cần multipart VÀ tối ưu path
+  Đáp án: Multipart upload + S3 Transfer Acceleration
+  Tip: Multipart alone thiếu khi đề nhấn on-prem/xa; single PUT chậm; FTP→EC2→S3 thêm hop
+  Lỗi hay nhầm: Chỉ multipart (không TA); single operation; relay qua EC2
 
 [Câu] SSE-S3 vs SSE-KMS vs SSE-C
   Yêu cầu đề: Chọn loại mã hóa at rest; ai quản lý key
@@ -187,6 +196,20 @@ MỤC LỤC NHANH
 [Câu] Auth offload (CF→ALB→EC2)
   Đáp án: Cognito User Pools trên ALB
   Tip: CloudFront không có User Pool auth built-in
+
+[Câu] EC2 đa ngôn ngữ ?lang= — CloudFront luôn 1 ngôn ngữ
+  Yêu cầu đề: Origin EC2 đúng theo query string lang; CloudFront cache sai — mọi lang ra cùng nội dung
+  Yêu cầu đề: Cùng path/file name, khác query string → fix cache behavior
+  Đáp án: Cache policy — Query string forwarding and caching; whitelist `lang`
+  Tip: Query string vào cache key; không nhầm header whitelist; giảm TTL không fix gốc
+  Lỗi hay nhầm: Cache theo headers; Cache None; chỉ giảm TTL
+
+[Câu] Static S3 + dynamic ALB — latency thấp global
+  Yêu cầu đề: Static từ S3, dynamic từ ALB; user global; minimize latency
+  Yêu cầu đề: Một CDN phục vụ cả hai loại nội dung qua edge
+  Đáp án: CloudFront multiple origins — behavior/path route S3 vs ALB
+  Tip: CF cache static ở edge; dynamic forward ALB; Origin Groups = failover không gộp 2 origin thành 1 request
+  Lỗi hay nhầm: Global Accelerator (TCP/UDP, không cache static web); Lambda@Edge route thủ công không cần khi multi-origin đủ
 
 --------------------------------------------------------------------------------
 5. ECS / FARGATE / ECR
@@ -319,6 +342,20 @@ MỤC LỤC NHANH
   Đáp án: Docker multi-container (Dockerrun.aws.json v2)
   Tip: Single-container = 1 container/EC2
 
+[Câu] EB HTTPS endpoint — in-flight encryption client ↔ web server
+  Yêu cầu đề: Muốn HTTPS thay HTTP trên Beanstalk; client encrypt tới web server (terminate tại ALB)
+  Yêu cầu đề: Chọn cách setup HTTPS đúng trên Beanstalk
+  Đáp án: Tạo config file trong `.ebextensions` để cấu hình Load Balancer (listener 443 + ACM cert ARN)
+  Tip: `aws:elbv2:listener:443` + `SSLCertificateArns` — cert ACM cùng region
+  Lỗi hay nhầm: Health check — không bật HTTPS; CFN template riêng — EB quản lý LB; mở port 80 SG — HTTP không phải HTTPS
+
+[Câu] ASP.NET IIS — nhiều version: dev, test, load test
+  Yêu cầu đề: Nhiều version/môi trường chạy song song trên EB; dev/test vs load test gần production
+  Yêu cầu đề: Chọn cách cấu hình deployment/process đúng pattern EB
+  Đáp án: 1 Application — env dev (single instance) + env load-test (cấu hình gần production)
+  Tip: Mỗi environment = URL + capacity + config riêng; deploy application version lên từng env
+  Lỗi hay nhầm: ALB route hostname + ebextensions (overkill); chỉ 1 dev env; 1 env + Ansible
+
 --------------------------------------------------------------------------------
 7. EC2 / AUTO SCALING / ELB
 --------------------------------------------------------------------------------
@@ -350,6 +387,13 @@ MỤC LỤC NHANH
 [Câu] ASG facts (chọn 2)
   Đáp án: Không span region; không thêm EBS volume
   Tip: 1 region, multi-AZ; scale = số instance
+
+[Câu] EC2 — theo dõi response time app + SNS khi vượt ngưỡng (chọn 2)
+  Yêu cầu đề: App trên EC2; cần metric average response time + alarm gửi SNS khi vượt threshold; sau này scale nhiều instance
+  Yêu cầu đề: Custom metric từ app (không có sẵn như CPU) → phải đưa dữ liệu vào CloudWatch
+  Đáp án: (1) CloudWatch Alarm → SNS khi average metric vượt ngưỡng; (2) App ghi response time vào log + CloudWatch Agent stream log + Metric filter tạo custom metric
+  Tip: Log → Agent → Logs → Metric filter → Metric → Alarm → SNS
+  Lỗi hay nhầm: EventBridge rule — không phải cách chuẩn alarm metric; SSM Agent — patch/inventory, không ship custom app metric; Inspector — security scan, không đọc log response time
 
 --------------------------------------------------------------------------------
 8. RDS
@@ -514,6 +558,13 @@ MỤC LỤC NHANH
   Đáp án: Cùng partition key → cùng shard; scale = split/merge shard
   Tip: 1 shard = 1 MB/s in, 2 MB/s out standard; hot key gây bottleneck
 
+[Câu] 10 shard, 3 MB/s tổng vẫn ProvisionedThroughputExceeded
+  Yêu cầu đề: Metric utilization thấp (~3 MB/s << 10 MB/s capacity) nhưng vẫn throttle thường xuyên
+  Yêu cầu đề: Hỏi nguyên nhân — không phải thiếu shard tổng thể
+  Đáp án: Partition key không phân tán đủ (hot shard) — hầu hết record vào 1 shard vượt 1 MB/s
+  Tip: Throughput tính theo shard; metric trung bình stream che hot shard
+  Lỗi hay nhầm: Retention quá dài (không gây write throttle); quá nhiều shard; metric chậm
+
 [Câu] KCL trên EC2 — max instance sau split shard (6 → 10)
   Yêu cầu đề: Stream split shard; app consumer dùng KCL trên EC2; hỏi tối đa bao nhiêu instance xử lý song song
   Yêu cầu đề: Traffic tăng → admin split shard; consumer scale thế nào
@@ -596,6 +647,19 @@ MỤC LỤC NHANH
 [Câu] Stale OK ≤ 1 phút
   Đáp án: Lazy Loading + TTL
   Tip: Đọc kỹ "no stale" vs "stale acceptable"
+
+[Câu] Redis cấu hình ElastiCache — chọn 2 đúng
+  Yêu cầu đề: Team cân nhắc Redis cache DB; chọn 2 phát biểu đúng về cấu hình
+  Đáp án (2): Mọi node cùng region; Cluster mode ON → không promote replica thủ công
+  Tip: Replica = scale read không write; replication async cả hai mode
+  Lỗi hay nhầm: Replica scale write; cluster ON=async OFF=sync (sai); không replica vẫn không mất data
+
+[Câu] Cache layer — geospatial + query + horizontal scale (RDS backend)
+  Yêu cầu đề: Thêm cache; cần geospatial, query, scale ngang; DB vẫn là RDS
+  Yêu cầu đề: Chọn cache tối ưu — không migrate DB
+  Đáp án: ElastiCache Redis **cluster mode enabled**
+  Tip: Redis GEOADD/GEORADIUS; cluster mode = shard scale write; Memcached không geospatial
+  Lỗi hay nhầm: Redis cluster OFF (chỉ replica read); DynamoDB+DAX (đổi DB); CloudFront (CDN không phải app cache)
 
 --------------------------------------------------------------------------------
 14. VPC / NETWORKING
