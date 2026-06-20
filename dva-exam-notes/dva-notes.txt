@@ -1,5 +1,5 @@
 ================================================================================
-  AWS DVA-C02 — GHI CHÚ ÔN THI (cập nhật: 2026-06-15)
+  AWS DVA-C02 — GHI CHÚ ÔN THI (cập nhật: 2026-06-18)
   File: dva-exam-notes/dva-notes.txt
   Cập nhật tự động khi giải câu hỏi DVA qua skill dva-exam-notes
 ================================================================================
@@ -59,6 +59,35 @@ MỤC LỤC NHANH
   Tip: Hỗ trợ: IAM SigV4, Cognito User Pools, Lambda Authorizer, API Keys, Resource policy
   Lỗi hay nhầm: Chọn IAM SigV4 — đây LÀ cơ chế hỗ trợ; STS chỉ service cấp temporary creds (dùng bởi IAM/role)
 
+[Câu] Expose Lambda qua API GW — latency & cost thấp nhất, không cần API keys/usage plan/throttling
+  Yêu cầu đề: Lambda cần public HTTP endpoint; ưu tiên rẻ + nhanh
+  Yêu cầu đề: Không cần API keys, usage plans, per-method throttling
+  Đáp án: HTTP API
+  Tip: "lowest latency + cost" + "không cần tính năng nâng cao REST" → HTTP API
+  Tip: HTTP API ~70% rẻ hơn REST API; latency thấp hơn; đủ cho Lambda proxy đơn giản
+  Lỗi hay nhầm: Private REST API — "private" = chỉ truy cập trong VPC qua endpoint, không phải giải pháp rẻ/nhanh
+
+[Câu] REST API 429 burst traffic — bảo vệ Lambda, serve tối đa request có thể
+  Yêu cầu đề: REST API gặp 429 Too Many Requests khi burst; cần bảo vệ backend Lambda
+  Yêu cầu đề: Vẫn phục vụ được nhiều request nhất có thể trong giới hạn an toàn
+  Yêu cầu đề: Đề hỏi tính năng API Gateway — không phải cấu hình Lambda
+  Đáp án: Usage plan với burst limit + rate limit
+  Tip: 429 = API GW throttle; usage plan kiểm soát traffic TRƯỚC khi tới Lambda (token bucket)
+  Tip: Rate limit = RPS ổn định; burst limit = chịu spike ngắn — tune để max throughput an toàn
+  Lỗi hay nhầm: Caching — chỉ giảm load request trùng cache key, không bảo vệ burst đa dạng
+  Lỗi hay nhầm: Provisioned concurrency — tính năng Lambda, không throttle request ở API GW
+  Tip: Usage plan ≠ chỉ monetization — là cơ chế gắn API key + quota + rate/burst throttle; exam dùng để bảo vệ Lambda
+  Tip: Không cần thu phí thật — chỉ cần API key + usage plan để kiểm soát RPS/burst theo client/tier
+
+[Câu] Validate request trước Lambda — query string + headers bắt buộc, không sửa code Lambda
+  Yêu cầu đề: Kiểm tra request TRƯỚC khi tới backend Lambda
+  Yêu cầu đề: Required query string parameters và headers phải có mặt
+  Yêu cầu đề: Không thay đổi code Lambda backend
+  Đáp án: Request Validator (REST API)
+  Tip: Request Validator = validate structure (body/query/headers có đủ không); Authorizer = auth ai được gọi
+  Tip: Model gắn với Request Validator để validate JSON body schema; query/header chỉ cần Request Validator
+  Lỗi hay nhầm: Lambda Authorizer — dùng cho auth/custom token lookup, không phải check param/header có mặt
+
 --------------------------------------------------------------------------------
 2. LAMBDA
 --------------------------------------------------------------------------------
@@ -78,8 +107,45 @@ MỤC LỤC NHANH
   Đáp án: Async invocation + fail HẾT mọi retry
   Tip: Sync (API GW) không dùng DLQ async; fail 1 lần rồi OK → không vào DLQ
 
+[Câu] Async Lambda fail — cần event gốc + error details + function response
+  Yêu cầu đề: Lambda xử lý async event từ S3; invocation fail; cần capture event gốc, chi tiết lỗi và function response để debug
+  Yêu cầu đề: Đề hỏi cấu hình gì — không chỉ lưu event fail
+  Đáp án: Lambda Destinations — On Failure destination trỏ SQS hoặc SNS
+  Tip: DLQ chỉ gửi original event payload — KHÔNG có error details / function response
+  Tip: Destinations On Failure gửi requestPayload + responseContext (error) + responsePayload
+  Lỗi hay nhầm: Chọn DLQ khi đề nói rõ cần error details + function response
+
 [Câu] Bundle dependencies
   Đáp án: 1 deployment package hoặc Lambda Layers
+
+[Câu] Lambda Java — data >1MB encrypt/decrypt runtime
+  Yêu cầu đề: Truyền >1MB data vào Lambda; encrypt/decrypt lúc runtime
+  Đáp án: Envelope encryption + reference data as file trong code (deployment package / đọc file)
+  Tip: Env var Lambda max ~4 KB tổng — không chứa 1MB; KMS Encrypt API max ~4 KB — không encrypt trực tiếp 1MB
+  Lỗi hay nhầm: KMS/store env var; KMS direct encrypt file; envelope + env var
+
+[Câu] Mobile game API — duplicate request / idempotency (retry throttling)
+  Yêu cầu đề: Lambda REST API; mỗi request có unique ID; traffic spike ngẫu nhiên; client retry khi throttle
+  Yêu cầu đề: Xử lý duplicate không mất dữ liệu / không inconsistent
+  Đáp án: Lưu unique ID trong DynamoDB; Lambda check bảng trước khi xử lý
+  Tip: Idempotency = check-or-store ID rồi mới process; DynamoDB scale serverless khớp Lambda
+  Lỗi hay nhầm: Trả client error khi duplicate (client retry thêm); RDS (connection/scale); Memcached (volatile, mất key)
+
+[Câu] Lambda SnapStart — giảm cold start (Java / Python / .NET)
+  Yêu cầu đề: Lambda Java (hoặc Python 3.12+ / .NET 8) cold start chậm do JVM/runtime init; cần giảm latency khởi động mà không giữ instance luôn ấm
+  Yêu cầu đề: Đề hỏi bật/cơ chế nào để tăng tốc cold start
+  Đáp án: Bật SnapStart trên function → publish version; Lambda snapshot môi trường đã init rồi restore khi cold start
+  Tip: SnapStart = snapshot sau init, restore nhanh; KHÔNG thay Provisioned Concurrency (giữ instance ấm 24/7)
+  Tip: Runtime hỗ trợ: Java 11/17, Python 3.12+, .NET 8 — không phải mọi runtime
+  Lỗi hay nhầm: Chọn Provisioned Concurrency khi đề chỉ cần giảm cold start chi phí thấp; tăng memory/timeout không fix JVM init
+
+[Câu] EventBridge schedule → Lambda không chạy (rule enabled)
+  Yêu cầu đề: EventBridge rule cron 9 AM UTC trigger Lambda; rule enabled nhưng Lambda không invoke
+  Yêu cầu đề: Đề hỏi kiểm tra gì TRƯỚC TIÊN
+  Đáp án: Lambda resource-based policy cho phép events.amazonaws.com invoke function
+  Tip: Service invoke Lambda = resource policy trên function (ai được gọi); execution role = Lambda gọi service khác
+  Tip: Tạo trigger qua Console thường auto thêm policy; tạo rule thủ công/IaC dễ thiếu
+  Lỗi hay nhầm: Execution role events:PutEvents — Lambda không cần PutEvents để bị EventBridge invoke
 
 --------------------------------------------------------------------------------
 3. S3
@@ -89,7 +155,14 @@ MỤC LỤC NHANH
   Đáp án: Pre-signed URL
   Tip: Bucket/IAM policy = quyền lâu dài
 
-[Câu] Bắt buộc HTTPS (in transit)
+[Câu] External AWS account upload S3 tạm 2 giờ
+  Yêu cầu đề: Account ngoài cần upload object vào bucket của bạn; access hết hạn sau 2h
+  Yêu cầu đề: Temporary access — không chia long-term access keys
+  Đáp án (2 đúng): (1) STS AssumeRole cross-account role + temp creds · (2) Pre-signed URL upload expiry 2h
+  Tip: Pre-signed PUT URL — đơn giản cho upload có thời hạn; không cần external account assume role
+  Tip: Cross-account role trust external account principal → AssumeRole → temp creds (session ≤ 12h)
+  Lỗi hay nhầm: IAM user + access keys (long-term, anti-pattern); add external IAM user vào group account mình (không làm được)
+
   Đáp án: Bucket policy Deny + aws:SecureTransport: false
   Tip: KMS policy không enforce HTTPS cho GetObject
 
@@ -153,6 +226,14 @@ MỤC LỤC NHANH
   Yêu cầu đề: Tự quản lý key ngoài AWS; header x-amz-server-side-encryption-customer-*
   Đáp án: Client gửi key mỗi PUT/GET; S3 không persist key
   Tip: Copy object SSE-C phải cung cấp key nguồn/đích
+
+[Câu] Q91 — medical records S3: CMK + audit + rotate hàng năm
+  Yêu cầu đề: Lưu hồ sơ y tế nhạy cảm trên S3; encrypt bằng customer-managed key; audit mọi key usage; rotate key hàng năm
+  Đáp án: SSE-KMS với customer-managed CMK + bật automatic key rotation (annual) trên CMK
+  Tip: CMK = customer managed key trong KMS; CloudTrail log kms:Decrypt/GenerateDataKey → auditable
+  Tip: SSE-S3 = AWS-managed key, không CMK riêng, không audit chi tiết như KMS
+  Lỗi hay nhầm: SSE-C — customer-provided key gửi mỗi request, không phải CMK; không có KMS audit/rotation tự động
+  Lỗi hay nhầm: Client-side encryption local key — tự vận hành rotation/audit, không tích hợp KMS CloudTrail
 
 [Câu] Default encryption & bắt buộc mã hóa
   Yêu cầu đề: Mọi upload phải SSE; không cho unencrypted object
@@ -257,6 +338,31 @@ MỤC LỤC NHANH
   Tip: docker build = build local; aws docker push = không tồn tại
   Lỗi hay nhầm: Login bằng access key/secret trực tiếp
 
+[Câu] ECS multi-env config — API URL, credentials, minimal code change
+  Yêu cầu đề: ECS nhiều environment; lưu API URL + credentials; ít sửa application code
+  Yêu cầu đề: Config tách theo env, app đọc runtime thay vì hardcode/rebuild mỗi env
+  Đáp án: SSM Parameter Store — hierarchical path theo env (vd /myapp/dev/api-url, /myapp/prod/api-url)
+  Tip: App code giữ nguyên logic GetParameter; đổi prefix/path theo env — Task IAM role ssm:GetParameters
+  Lỗi hay nhầm: Env vars trong task definition mỗi deploy (đổi infra nhiều); KMS lưu config; file encrypt kèm image
+
+[Câu] Q97 — one-time migration job ECS: chạy xong rồi dừng
+  Yêu cầu đề: Job migration một lần trên ECS; start → chạy xong → stop; không cần long-running service
+  Đáp án: ECS Run Task với Fargate launch type — task chạy một lần, exit thì dừng
+  Tip: Service + desiredCount=1 = long-running, restart khi fail — không phải batch one-time
+  Tip: Từ khóa đề: one-time, run to completion, no long-running → Run Task (không phải Service)
+  Lỗi hay nhầm: ECS Service desiredCount=1 — giữ container sống, restart on failure
+  Lỗi hay nhầm: Scheduled Task mỗi phút — recurring, không phải one-time migration
+  Lỗi hay nhầm: Capacity Provider Spot — tối ưu cost/ capacity, không chọn run mode
+
+[Câu] Q99 — ECS + ALB: task mới chỉ nhận traffic sau health check
+  Yêu cầu đề: ECS Service 10 tasks sau ALB; task mới chỉ nhận traffic sau pass health check; task fail health check bị remove khỏi target group
+  Đáp án: ECS Service health check grace period + ALB target group health checks
+  Tip: ALB target group health check = route traffic chỉ tới healthy target; unhealthy → deregister khỏi rotation
+  Tip: Grace period = thời gian task mới startup trước khi ECS/ALB coi health check fail là thật (tránh kill task đang boot)
+  Lỗi hay nhầm: Container health check task definition — Docker HEALTHCHECK trong task; không thay ALB target group routing
+  Lỗi hay nhầm: CloudWatch alarm auto-scaling — scale capacity, không quản ALB register/deregister traffic
+  Lỗi hay nhầm: Capacity Provider termination protection — bảo vệ task khi scale-in, không liên quan health routing ALB
+
 --------------------------------------------------------------------------------
 6. ELASTIC BEANSTALK
 --------------------------------------------------------------------------------
@@ -268,13 +374,14 @@ MỤC LỤC NHANH
   Tip: Saved Configuration = snapshot cấu hình YAML — khác Application Version (source code)
   Tip: Save config path S3: resources/templates/{application-name}/
 
-[Câu] Environment tier — Web server vs Worker
-  Yêu cầu đề: Chọn loại environment khi create EB — web HTTP vs xử lý background
-  Yêu cầu đề: Worker nhận job từ SQS; Web server có URL public + ALB (Traffic splitting, Blue/Green web)
-  Đáp án: Web server (Standard) = HTTP/HTTPS cho user | Worker (SQS/HTTP) = poll SQS, không phục vụ web trực tiếp
+[Câu] Environment tier — Web server vs Worker (decouple job lâu + SQS)
+  Yêu cầu đề: Một số component xử lý lâu; cần decouple để app vẫn responsive dưới load
+  Yêu cầu đề: Dùng SQS + Elastic Beanstalk — chọn loại environment nào
+  Đáp án: Dedicated Worker environment — EC2 poll SQS, xử lý background; Web tier nhận request nhanh rồi đẩy job vào queue
   Tip: Console: Environment tier → Web server environment / Worker environment
   Tip: Saved Config YAML: EnvironmentTier Name WebServer hoặc Worker, Type Standard hoặc SQS/HTTP
-  Tip: Traffic splitting, ALB canary — chỉ Web server tier
+  Tip: Load-balancing Autoscaling = Web server tier (HTTP), không phải SQS worker
+  Lỗi hay nhầm: Single Instance Worker node (không phải tên tier EB chuẩn); Single Instance + Elastic IP (web dev, không decouple SQS)
 
 [Câu] 5 chiến lược deploy — tổng quan
   Yêu cầu đề: Zero downtime, rollback, canary, giữ capacity — chọn deployment policy
@@ -297,6 +404,13 @@ MỤC LỤC NHANH
   Đáp án: Launch batch mới trước → chuyển traffic → terminate batch cũ
   Tip: Khác Rolling thường — Rolling giảm capacity
 
+[Câu] Rolling deploy thất bại một phần — terminate instance failed
+  Yêu cầu đề: Rolling deployment; chỉ vài batch thành công, batch còn lại fail; team terminate instance failed
+  Yêu cầu đề: Sau terminate, EB xử lý thế nào với instance đó?
+  Đáp án: EB thay instance failed bằng instance chạy app version từ deployment thành công gần nhất
+  Tip: EB auto-heal capacity; version = most recent successful — không phải oldest, không cần chọn tay Console
+  Lỗi hay nhầm: Không replace; oldest successful; manual chọn version trên Console
+
 [Câu] Immutable
   Yêu cầu đề: Rollback nhanh terminate fleet mới; tránh nửa cũ nửa mới trên instance
   Đáp án: Fleet EC2 mới hoàn toàn → swap → xóa fleet cũ
@@ -306,6 +420,13 @@ MỤC LỤC NHANH
   Yêu cầu đề: 10% traffic test version mới; environment có ALB
   Đáp án: Traffic splitting — % traffic canary rồi tăng dần
   Tip: Chỉ ALB; Classic LB không hỗ trợ
+
+[Câu] EB deploy — mất hết EC2 burst balance (T-series)
+  Yêu cầu đề: Sau test deploy trên Beanstalk, toàn bộ accumulated burst balance (CPU credit) của EC2 bị mất
+  Yêu cầu đề: Chọn deployment option nào gây hành vi này
+  Đáp án: Immutable updates hoặc Traffic splitting (canary)
+  Tip: Burst credit gắn instance ID; terminate fleet cũ → credit mất; Rolling/All-at-once thường update instance hiện có
+  Lỗi hay nhầm: Rolling; All-at-once; canary fail reset credit (không phải cơ chế EB)
 
 [Câu] Cross-account migration
   Đáp án: Saved Config → download → sửa → upload S3 account B
@@ -329,6 +450,24 @@ MỤC LỤC NHANH
   Yêu cầu đề: Chia nhóm deploy tuần tự; không nhầm Hooks
   Đáp án: Deployment Groups + Rolling policy batch size
   Tip: Hooks = lifecycle script trên instance
+
+[Câu] Q94 — custom script cài library trước khi app start
+  Yêu cầu đề: Elastic Beanstalk EC2; chạy script cài library trước khi application start
+  Đáp án: .ebextensions/*.config — section commands hoặc container_commands
+  Tip: commands = trước app/web server setup; container_commands = sau platform setup, trước deploy app version
+  Tip: File .config trong thư mục .ebextensions của source bundle (ZIP deploy)
+  Lỗi hay nhầm: Procfile pre-start — định nghĩa process chạy app, không phải provision EC2/install system lib
+  Lỗi hay nhầm: Environment properties — biến môi trường KEY=VALUE, không chạy script
+  Lỗi hay nhầm: User-data launch template — EB quản lý LT; customize instance nên dùng .ebextensions (native EB)
+
+[Câu] Q95 — bug critical sau deploy, restore version cũ ngay
+  Yêu cầu đề: Deploy application version mới EB; phát hiện bug critical; cần restore version working trước đó ngay
+  Đáp án: Deploy lại previous application version từ Application Versions list
+  Tip: EB lưu mọi version (zip trên S3); rollback = deploy version cũ lên environment — không xóa env
+  Tip: Console: Application → Application versions → chọn version cũ → Deploy
+  Lỗi hay nhầm: Xóa environment redeploy — phá hạ tầng, chậm, không cần thiết
+  Lỗi hay nhầm: Restart EC2 — vẫn chạy cùng version buggy, không đổi code
+  Lỗi hay nhầm: Rollback button restore DNS — swap URL blue/green, không phải revert app version trong env
 
 [Câu] RDS tạo trong EB, destroy env
   Đáp án: Snapshot trước khi destroy
@@ -395,6 +534,19 @@ MỤC LỤC NHANH
   Tip: Log → Agent → Logs → Metric filter → Metric → Alarm → SNS
   Lỗi hay nhầm: EventBridge rule — không phải cách chuẩn alarm metric; SSM Agent — patch/inventory, không ship custom app metric; Inspector — security scan, không đọc log response time
 
+[Câu] Reserved Instance — capacity reservation (Zonal vs Regional)
+  Yêu cầu đề: EC2 business-critical; cần reserve capacity (ngoài Savings Plans)
+  Đáp án: Zonal Reserved Instances — gắn 1 AZ, đảm bảo capacity trong AZ đó
+  Tip: Regional RI = giảm giá linh hoạt trong region, KHÔNG đảm bảo capacity AZ cụ thể
+  Lỗi hay nhầm: Chọn Regional RI khi đề hỏi capacity reservation
+
+[Câu] Single-tenant hardware EC2 — cost-effective nhất (chọn 1)
+  Yêu cầu đề: Cần chạy EC2 trên hardware single-tenant (compliance/security)
+  Yêu cầu đề: MOST cost-effective trong các cách cô lập single tenant
+  Đáp án: Dedicated Instances
+  Tip: Dedicated Instance = hardware chỉ account bạn, trả theo instance; Dedicated Host = trả cả máy vật lý (đắt hơn)
+  Lỗi hay nhầm: Dedicated Hosts (isolate tốt nhất nhưng không cost-effective nhất); On-Demand/Spot mặc định = shared tenancy
+
 --------------------------------------------------------------------------------
 8. RDS
 --------------------------------------------------------------------------------
@@ -411,8 +563,12 @@ MỤC LỤC NHANH
   Đáp án: !GetAtt MyDB.Endpoint.Address
   Tip: !Ref = ID/tên, không phải endpoint
 
---------------------------------------------------------------------------------
-9. DYNAMODB
+[Câu] Backup retention 3 năm — automated backup không đủ
+  Yêu cầu đề: Hợp đồng compliance yêu cầu giữ monthly DB backup trong 3 năm
+  Yêu cầu đề: RDS automated backup retention max ~35 ngày — không đáp ứng yêu cầu dài hạn
+  Đáp án: EventBridge/CloudWatch cron → Lambda → create manual DB snapshot hàng tháng; snapshot giữ đến khi xóa (có thể 3 năm)
+  Tip: Automated backup max 35 ngày; manual snapshot không giới hạn retention như automated
+  Lỗi hay nhầm: Enable RDS automatic backups (vẫn chỉ max 35 ngày); Multi-AZ / Read Replica (HA/read scale, không phải long-term backup archive)
 --------------------------------------------------------------------------------
 
 9. DYNAMODB
@@ -432,6 +588,31 @@ MỤC LỤC NHANH
   Đáp án: PutItem overwrite; GetItem đọc 1; UpdateItem patch; DeleteItem xóa 1
   Tip: ConditionExpression optimistic lock trên Put/Update/Delete
 
+[Câu] Partition Key vs Sort Key — khác nhau thế nào?
+  Yêu cầu đề: Đề hỏi vai trò Partition Key và Sort Key trong DynamoDB
+  Đáp án: Partition Key quyết định physical partition lưu item; Sort Key sắp xếp item trong cùng partition
+  Tip: Primary Key = chỉ Partition Key (simple) HOẶC Partition Key + Sort Key (composite)
+  Tip: Query BẮT BUỘC có Partition Key; Sort Key thêm điều kiện range/sort — KHÔNG thay thế Partition Key
+  Lỗi hay nhầm: Sort Key thay Partition Key khi query; cả hai key đều optional (SAI — Partition Key bắt buộc)
+
+[Câu] Tránh overwrite item đã tồn tại (cùng primary key)
+  Yêu cầu đề: PutItem ghi đè item cùng PK → data discrepancy; cần ngăn overwrite
+  Đáp án: Conditional writes — ConditionExpression attribute_not_exists(PK) hoặc attribute_not_exists(SK)
+  Tip: PutItem mặc định overwrite toàn bộ item; condition = chỉ ghi khi thỏa điều kiện
+  Lỗi hay nhầm: Atomic Counters (tăng số atomically, không chặn overwrite); BatchWrite (ghi hàng loạt, vẫn overwrite)
+
+[Câu] Lambda upsert DynamoDB — minimum IAM permissions
+  Yêu cầu đề: Lambda đọc item rồi update attribute hoặc tạo mới nếu chưa có (upsert); MINIMUM permissions
+  Đáp án: dynamodb:GetItem + dynamodb:UpdateItem
+  Tip: UpdateItem tự tạo item nếu key chưa tồn tại — không cần PutItem thêm
+  Lỗi hay nhầm: Thêm PutItem (thừa); AddItem (không phải action IAM); GetRecords (Streams, không phải GetItem)
+
+[Câu] Backup DynamoDB → S3 download local — NOT feasible (chọn 1)
+  Yêu cầu đề: Backup table DynamoDB lên S3 để tải về local; hỏi option KHÔNG khả thi
+  Đáp án: DynamoDB on-demand backup — backup lưu trong DynamoDB managed storage, restore vào table; KHÔNG ghi thẳng ra S3 để download
+  Tip: Khả thi: EMR+Hive export, Data Pipeline export, Glue copy DynamoDB→S3; Export to S3 (tính năng riêng) ≠ on-demand backup
+  Lỗi hay nhầm: Data Pipeline (thực ra khả thi export DDB→S3)
+
 [Câu] BatchGetItem & BatchWriteItem
   Yêu cầu đề: Nhiều item ít request; UnprocessedKeys/Items retry
   Đáp án: BatchGet ≤100/16MB; BatchWrite ≤25/16MB
@@ -441,6 +622,13 @@ MỤC LỤC NHANH
   Yêu cầu đề: Tìm theo PK hiệu quả vs đọc cả table
   Đáp án: Query bắt buộc PK; Scan đọc hết — đắt RCU
   Tip: Scan+Filter tốn RCU theo data scanned
+
+[Câu] Scan table 100 GB — hành vi và chi phí RCU
+  Yêu cầu đề: Developer Scan table 100 GB; đề hỏi behavior + cost concern
+  Đáp án: Scan đọc MỌI item trong table bất kể FilterExpression — tốn RCU theo toàn bộ data scanned (~100 GB)
+  Tip: FilterExpression chỉ lọc SAU khi đọc — không giảm RCU
+  Tip: Scan KHÔNG tự dùng LSI optimize — LSI chỉ khác SK cùng PK; muốn dùng LSI phải Scan/Query trực tiếp index đó
+  Lỗi hay nhầm: Scan dùng LSI tự optimize (C); Scan chỉ đọc item match filter (A); Scan rẻ hơn Query (D)
 
 [Câu] projection / filter / condition expression — chat practice
   Yêu cầu đề: Scan chỉ trả vài cột name email
@@ -457,15 +645,31 @@ MỤC LỤC NHANH
   Đáp án: GSI PK/SK mới capacity riêng; LSI cùng PK khác SK lúc create table
   Tip: LSI max 5; strong read trên LSI
 
+[Câu] GSI inverted index (PK/SK đảo) — query behavior
+  Yêu cầu đề: GSI đảo PK/SK so với base table (table PK=userId SK=orderId; GSI PK=orderId SK=userId); đề hỏi khi query GSI expect gì
+  Đáp án: GSI read eventually consistent + throughput provisioned riêng (RCU/WCU riêng)
+  Tip: GSI KHÔNG hỗ trợ strongly consistent read — chỉ eventual; LSI mới có strong read
+  Tip: GSI capacity tách khỏi base table — query GSI tốn RCU của GSI, không dùng RCU table
+  Lỗi hay nhầm: Chọn GSI strongly consistent; hoặc GSI dùng chung throughput base table
+
 [Câu] DynamoDB Streams + Lambda
   Yêu cầu đề: Trigger khi INSERT/MODIFY/REMOVE
   Đáp án: Enable Stream → Lambda event source mapping
   Tip: Stream per-table ordered; khác Kinesis
 
+[Câu] DynamoDB Streams — stream view type (old + new image)
+  Yêu cầu đề: Bật Stream + Lambda event source mapping; đề hỏi view type nào có cả old và new item image
+  Đáp án: NEW_AND_OLD_IMAGES
+  Tip: KEYS_ONLY = chỉ PK/SK; NEW_IMAGE = item sau thay đổi; OLD_IMAGE = item trước thay đổi
+  Tip: INSERT chỉ có NewImage; REMOVE chỉ có OldImage; MODIFY mới có cả hai (nếu chọn NEW_AND_OLD_IMAGES)
+  Lỗi hay nhầm: Chọn KEYS_ONLY khi cần full item before/after
+
 [Câu] TTL — tự xóa item hết hạn
-  Yêu cầu đề: Session/log auto-delete; attribute Number epoch
-  Đáp án: Enable TTL attribute; xóa nền không tốn WCU
-  Tip: Xóa không instant — delay vài ngày
+  Yêu cầu đề: Session/log auto-delete; attribute Number epoch; hoặc expiresAt đã qua 2 giờ — item còn trong table không?
+  Đáp án: Enable TTL attribute; xóa nền không tốn WCU; item CÓ THỂ vẫn tồn tại — TTL deletion async, có thể mất tới 48 giờ
+  Tip: Xóa không instant khi timestamp qua — không dùng TTL cho compliance xóa ngay lập tức
+  Tip: Item hết hạn vẫn đọc được GetItem/Query/Scan cho đến khi DynamoDB xóa thật — không bị "ẩn"
+  Lỗi hay nhầm: Xóa ngay khi expiresAt qua; item ẩn khỏi GetItem nhưng Scan vẫn thấy; chuyển sang S3 Glacier
 
 [Câu] TransactWrite / TransactGet — ACID
   Yêu cầu đề: All-or-nothing nhiều item
@@ -497,6 +701,15 @@ MỤC LỤC NHANH
   Yêu cầu đề: ProvisionedThroughputExceededException; traffic spike vượt RCU/WCU
   Đáp án: Tăng RCU/WCU, Auto Scaling, hoặc chuyển On-Demand
   Tip: On-Demand tự scale, trả theo request; Provisioned rẻ hơn nếu traffic ổn định
+  Tip: Chỉ áp dụng khi throttle do TỔNG throughput — KHÔNG fix hot partition (skew key)
+
+[Câu] Hot partition — 10 sensor chiếm 90% writes (IoT sensorId PK)
+  Yêu cầu đề: Table PK = sensorId; vài key nhận phần lớn write → hot partition; đề hỏi cách phân tán write load
+  Đáp án: Write sharding — thêm random suffix (1–N) vào partition key khi ghi; đọc scatter-gather qua các suffix
+  Tip: Mỗi partition ~1000 WCU/s — hot key = 1 partition quá tải dù table còn capacity
+  Tip: On-Demand / Auto Scaling scale tổng throughput — KHÔNG fix skew partition key
+  Tip: GSI = access pattern query — không giải quyết hot write trên base table PK
+  Lỗi hay nhầm: Chuyển On-Demand hoặc Auto Scaling khi đề nói hot partition / skew key
 
 [Câu] GSI — capacity riêng
   Yêu cầu đề: Query nhiều trên GSI; write vào table có GSI
@@ -508,16 +721,22 @@ MỤC LỤC NHANH
 --------------------------------------------------------------------------------
 
 [Câu] Black Friday volume lớn
+  Yêu cầu đề: Website e-commerce dự kiến traffic rất lớn (Black Friday), lo queue bị quá tải gây message failures
+  Yêu cầu đề: Đề hỏi hành động phòng ngừa nào với SQS trước peak load
   Đáp án: SQS tự scale, không cần can thiệp
   Tip: Bottleneck thường ở consumer
+  Lỗi hay nhầm: "Enable auto-scaling cho SQS queue" hoặc "pre-configure queue capacity" (SQS không cấu hình capacity theo kiểu đó)
 
 [Câu] Poison message (product deleted)
   Đáp án: Dead-Letter Queue + maxReceiveCount
   Tip: Long polling ≠ xử lý failure
 
 [Câu] Message > 256 KB
+  Yêu cầu đề: Payload tăng dần vượt giới hạn message SQS
+  Yêu cầu đề: Hỏi cách để "accept message lớn hơn" thay vì giảm payload
   Đáp án: SQS Extended Client + S3
   Tip: Hard limit, không tăng quota; gzip không đủ
+  Lỗi hay nhầm: Multipart API (thuộc S3 upload), xin tăng service limit, hoặc chỉ gzip
 
 [Câu] Long polling vs Short polling
   Yêu cầu đề: Poll liên tục queue rỗng → tốn API; giảm empty responses
@@ -543,6 +762,17 @@ MỤC LỤC NHANH
   Yêu cầu đề: Đề hỏi con số retention, visibility, delay, polling, Standard vs FIFO
   Đáp án: Retention max 14d; visibility max 12h; delay 0–15m; long poll 1–20s; message 256KB
   Tip: FIFO exactly-once + ordering; Standard at-least-once
+
+[Câu] Lambda + SQS batch 10 — 2 fail 8 OK, chỉ retry message fail
+  Yêu cầu đề: Lambda xử lý SQS theo batch (vd 10 message); một phần batch fail
+  Yêu cầu đề: Hiện tại fail 1 message → cả batch quay lại queue (8 message OK cũng bị retry)
+  Yêu cầu đề: Chỉ retry message thất bại
+  Đáp án: Enable ReportBatchItemFailures + Lambda return batchItemFailures list
+  Tip: Event source mapping bật FunctionResponseTypes ReportBatchItemFailures
+  Tip: Response: {"batchItemFailures": [{"itemIdentifier": "<messageId>"}]} — chỉ message fail
+  Lỗi hay nhầm: Batch size = 1 — workaround chậm, mất lợi batch
+  Lỗi hay nhầm: FIFO queue — partial batch response không phụ thuộc FIFO vs Standard
+  Lỗi hay nhầm: DeleteMessageBatch thủ công — Lambda event source tự delete message thành công
 
 --------------------------------------------------------------------------------
 11. KINESIS DATA STREAMS / FIREHOSE
@@ -572,7 +802,27 @@ MỤC LỤC NHANH
   Tip: KCL lease 1 shard = 1 worker; max instance = số shard; min có thể 1 instance xử lý nhiều shard
   Lỗi hay nhầm: Chọn 20 (2× shard) hoặc 6 (số shard cũ trước split)
 
-[Câu] Nhiều consumer lag — Enhanced Fan-out (EFO)
+[Câu] KPL producer — ProvisionedThroughputExceeded (chọn 2)
+  Yêu cầu đề: IoT real-time qua KPL → Kinesis; app dừng vì ProvisionedThroughputExceeded
+  Yêu cầu đề: Chọn 2 hành động xử lý — producer bị throttle / thiếu capacity
+  Đáp án (2): Producer retry exponential backoff; Tăng số shard (split) để có đủ capacity
+  Tip: EFO = consumer read side, không fix producer write throttle; Kinesis Agent ≠ thay KPL cho IoT throughput
+  Lỗi hay nhầm: Enhanced fan-out (lag nhiều consumer đọc, không phải KPL ghi quá tải); đổi sang SQS
+
+[Câu] Partition key productCategory — 10 shard nhưng 1 shard 90% traffic
+  Yêu cầu đề: Hot shard dù có nhiều shard; partition key low-cardinality (vd productCategory)
+  Yêu cầu đề: Hỏi root cause + solution (cặp đúng)
+  Đáp án: Low-cardinality key → hot shard; fix = high-cardinality (productId) hoặc random suffix
+  Tip: Kinesis hash partition key → cùng key = cùng shard; ít giá trị key = vài shard quá tải
+  Lỗi hay nhầm: Round-robin (SAI — Kinesis hash key); EFO (read side); Lambda memory (consumer chậm không phải nguyên nhân gốc skew)
+
+  Yêu cầu đề: Kinesis Data Stream có N shard; producer ghi vượt tổng capacity; consumer lag
+  Yêu cầu đề: Hỏi hành động đúng — scale write/read capacity của stream
+  Đáp án: Resharding — split/thêm shard để tăng capacity
+  Tip: 1 shard = 1 MB/s ingest; 4 shard max 4 MB/s; 6 MB/s → cần ≥6 shard
+  Tip: Enhanced fan-out = read side (consumer), không tăng producer write throughput
+  Lỗi hay nhầm: EFO khi đề nói producer ghi 6 MB/s vượt shard capacity
+
   Yêu cầu đề: Nhiều consumer chia 2 MB/s egress → lag
   Đáp án: EFO — dedicated 2 MB/s mỗi consumer
   Tip: SubscribeToShard API; Standard shared vs EFO dedicated
@@ -617,6 +867,12 @@ MỤC LỤC NHANH
   Đáp án: 200 × 50 = 10,000 IOPS max
   Tip: io2 = 500:1; gp3 = 3000 IOPS baseline
 
+[Câu] gp2 — kích thước nào đạt max IOPS?
+  Yêu cầu đề: EC2 dùng gp2; hỏi volume size khi đạt IOPS tối đa
+  Đáp án: ~5.3 TiB (16,000 / 3 IOPS per GiB ≈ 5,333 GiB)
+  Tip: gp2 = 3 IOPS/GiB, min 100 IOPS, max 16,000 IOPS; từ ~5.3 TiB trở lên IOPS không tăng thêm
+  Lỗi hay nhầm: Chọn 16 TiB — đó là size lớn nhưng IOPS vẫn cap 16,000 từ 5.3 TiB
+
 --------------------------------------------------------------------------------
 13. ELASTICACHE (REDIS / MEMCACHED)
 --------------------------------------------------------------------------------
@@ -648,7 +904,13 @@ MỤC LỤC NHANH
   Đáp án: Lazy Loading + TTL
   Tip: Đọc kỹ "no stale" vs "stale acceptable"
 
-[Câu] Redis cấu hình ElastiCache — chọn 2 đúng
+[Câu] Deploy app mới query logic khác — Redis trả stale data
+  Yêu cầu đề: ElastiCache Redis cache DB query; deploy version mới logic query đổi
+  Yêu cầu đề: Cache key cũ vẫn tồn tại → stale; hỏi cách invalidate đúng
+  Đáp án: Versioned cache key prefix (vd v2:query:userId) — key cũ tự bỏ qua
+  Tip: Deploy v2 → app chỉ đọc/ghi prefix v2; v1 key expire theo TTL hoặc eviction
+  Lỗi hay nhầm: Restart cluster (flush all, downtime); TTL=0 (tắt cache tạm, không invalidate có chọn lọc); Memcached built-in invalidation (không có)
+
   Yêu cầu đề: Team cân nhắc Redis cache DB; chọn 2 phát biểu đúng về cấu hình
   Đáp án (2): Mọi node cùng region; Cluster mode ON → không promote replica thủ công
   Tip: Replica = scale read không write; replication async cả hai mode
@@ -677,12 +939,69 @@ MỤC LỤC NHANH
 15. IAM / SECURITY
 --------------------------------------------------------------------------------
 
-[Câu] Cross-account token + resource policy
-  Đáp án: Secrets Manager
-  Tip: Parameter Store KHÔNG có resource policy
+[Câu] Cross-account token + resource policy (EC2 chat API token)
+  Yêu cầu đề: EC2 cần access token gọi chat API; mã hóa at rest + in transit; minimize overhead
+  Yêu cầu đề: Token phải accessible từ other AWS accounts qua resource-based policy
+  Đáp án: Secrets Manager + KMS CMK + resource policy trên secret; EC2 instance role GetSecretValue
+  Tip: Parameter Store KHÔNG có resource policy — không dùng khi đề yêu cầu resource-based policy cross-account
+  Tip: S3 SSE-KMS / DynamoDB không có resource policy trên secret/token như Secrets Manager
+  Lỗi hay nhầm: Parameter Store SecureString + withDecryption (đúng encrypt nhưng sai cross-account resource policy)
+
+[Câu] ABAC — engineer start/stop EC2 cùng tag team với IAM user
+  Yêu cầu đề: ABAC; engineer chỉ start/stop instance có tag team = tag team trên IAM user
+  Đáp án: IAM condition keys aws:ResourceTag/team và aws:PrincipalTag/team trong policy
+  Tip: PrincipalTag = tag trên IAM user/role; ResourceTag = tag trên EC2; so khớp trong Condition
+  Lỗi hay nhầm: Permission boundary (giới hạn max quyền, không phải ABAC tag match); SCP (org guardrail); EC2 resource policy (EC2 không hỗ trợ)
+
+  Yêu cầu đề: User Pool + Identity Pool; mỗi user chỉ access file của mình trên S3 (5 KB–500 MB)
+  Yêu cầu đề: Secure save/retrieve; hỏi giải pháp most efficient
+  Đáp án: IAM policy gắn role Identity Pool dùng Cognito identity prefix — Resource `bucket/private/${cognito-identity.amazonaws.com:sub}/*`
+  Tip: User Pool = auth; Identity Pool = temporary AWS creds; client upload/download trực tiếp S3 qua SigV4
+  Lỗi hay nhầm: Lambda@Edge / API GW+Lambda validate từng file (overhead, không efficient); S3 Event Notification (validate sau upload, không chặn ở authorization layer)
+
+[Câu] Mobile app — User Pool sign-in → gọi DynamoDB trực tiếp (không backend API)
+  Yêu cầu đề: User đăng nhập Cognito User Pool; mobile app gọi DynamoDB trực tiếp
+  Yêu cầu đề: Không qua backend API — cần AWS credentials tạm
+  Đáp án: User Pool → JWT → Identity Pool đổi JWT lấy temp AWS creds → SigV4 gọi DynamoDB
+  Tip: User Pool = auth + JWT; Identity Pool = federated identity + temp IAM creds (AccessKey/Secret/Token)
+  Tip: JWT User Pool KHÔNG thay AWS credentials — DynamoDB cần SigV4
+  Lỗi hay nhầm: User Pool trả IAM creds trực tiếp; JWT gọi DynamoDB trực tiếp; Identity Pool sign-in không qua User Pool JWT
+
+[Câu] Cognito User Pool — reject sign-up email domain ngoài công ty
+  Yêu cầu đề: Custom validation lúc sign-up; chặn email domain không thuộc company
+  Đáp án: Pre sign-up Lambda trigger
+  Tip: Pre sign-up = trước khi user được tạo; Lambda throw error → sign-up fail
+  Tip: Attribute validation rules = format/length regex — không custom logic domain phức tạp
+  Lỗi hay nhầm: Pre-authentication — chạy lúc login, không phải sign-up; CUSTOM_AUTH = custom login flow
+
+[Câu] Cognito hosted UI — token nào có email và cognito:groups?
+  Yêu cầu đề: User Pool hosted UI; OAuth code → token endpoint; cần decode lấy email + group memberships
+  Đáp án: ID token — identity claims (email, sub, cognito:groups)
+  Tip: ID token = OpenID Connect identity; Access token = authorize API/scopes, không phải nơi chính cho user profile claims
+  Tip: Refresh token = opaque, chỉ để lấy token mới — không decode claims
+  Lỗi hay nhầm: Access token chứa user attributes/groups — sai; Session token không phải loại token OAuth Cognito chuẩn
+
+[Câu] Cognito refresh token hết hạn 30 ngày — muốn kéo dài expiry
+  Yêu cầu đề: User Pool integration; refresh token expire sau 30 ngày; cần extend
+  Đáp án: User Pool App Client settings — Refresh token expiration
+  Tip: Default refresh token thường 30 ngày; config trên từng App client
+  Tip: Access/ID token TTL cũng trên App client — không phải Lambda trigger hay password policy
+  Lỗi hay nhầm: Identity Pool token TTL — khác User Pool OAuth tokens; Post-auth Lambda không set refresh TTL
 
 [Câu] EC2 video editing → S3
   Đáp án: Instance role, trust ec2.amazonaws.com
+
+[Câu] Test IAM dev không được terminate EC2 — dry-run
+  Yêu cầu đề: Tạo dev group/profile giới hạn quyền; muốn test user KHÔNG terminate được instance
+  Đáp án: AWS CLI `--dry-run` — kiểm tra quyền mà không thực hiện hành động thật
+  Tip: dry-run → có quyền: DryRunOperation; không quyền: UnauthorizedOperation/AccessDenied
+  Lỗi hay nhầm: --test (không tồn tại); EC2 metadata lấy policy; tạo/xóa EC2 thật để test
+
+[Câu] SSL/TLS server certificate — deploy ở đâu (chọn 2)
+  Yêu cầu đề: Bật HTTPS cho web app; cần deploy SSL/TLS server certificate
+  Đáp án (2): AWS Certificate Manager (ACM); IAM (upload server certificate — legacy CLB/CloudFront)
+  Tip: ACM = khuyến nghị chính (ALB, CloudFront, API GW); IAM server cert = cách cũ vẫn hợp lệ trong đề
+  Lỗi hay nhầm: Secrets Manager, SSM Parameter Store, CloudFormation (CFN dùng cert từ ACM/IAM, không phải nơi lưu cert)
 
 [Câu] KMS ThrottlingException — bulk encrypt (chọn 2, MOST optimal)
   Yêu cầu đề: App gửi bulk transaction đã mã hóa KMS sang app khác; sau bật encrypt → ThrottlingException
@@ -690,6 +1009,39 @@ MỤC LỤC NHANH
   Đáp án: (1) Backoff + retry giảm rate; (2) Data key caching — AWS Encryption SDK
   Tip: Mỗi encrypt gọi GenerateDataKey → dễ vượt quota KMS; cache data key = ít gọi KMS nhất
   Lỗi hay nhầm: S3 bucket-level key (SSE-KMS) — chỉ cho S3 at-rest, không phải app encrypt payload
+
+[Câu] Encrypt object lớn (11 GB) với KMS — best solution
+  Yêu cầu đề: Dữ liệu rất lớn (GB) cần mã hóa “using KMS” nhưng không muốn KMS encrypt trực tiếp cả payload
+  Yêu cầu đề: Chọn API/cách làm đúng (envelope encryption)
+  Đáp án: KMS `GenerateDataKey` → nhận (plaintext data key + encrypted data key); dùng plaintext key encrypt data locally; lưu encrypted data key kèm ciphertext
+  Tip: KMS dùng để bảo vệ key, không encrypt file lớn trực tiếp; `Encrypt` API chỉ phù hợp payload nhỏ
+  Lỗi hay nhầm: `Encrypt` trực tiếp data 11GB; `GenerateDataKeyWithoutPlaintext` (không có plaintext key thì không thể encrypt local)
+
+[Câu] Encrypt file 5 MB — KMS Encrypt API reject
+  Yêu cầu đề: Encrypt file lớn (5 MB); KMS Encrypt từ chối request
+  Đáp án: Envelope encryption — GenerateDataKey → encrypt data local → lưu encrypted data key + ciphertext
+  Tip: KMS Encrypt API max ~4 KB payload — không encrypt trực tiếp file MB
+  Lỗi hay nhầm: Split 4 KB chunks gọi Encrypt từng chunk — không phải pattern chuẩn, tốn API call; key rotation không liên quan payload size
+
+[Câu] Lambda env var password đã KMS encrypt — decrypt lúc startup
+  Yêu cầu đề: Password lưu env var dạng ciphertext (KMS); runtime cần plaintext
+  Đáp án: kms:Decrypt — gửi CiphertextBlob nhận plaintext password
+  Tip: Đã có ciphertext → Decrypt; GenerateDataKey = tạo key mới (envelope), không decrypt password có sẵn
+  Lỗi hay nhầm: GetParameterValue — API SSM Parameter Store, không phải KMS; ReEncrypt = đổi key wrap, không phải bước đầu lấy password
+
+[Câu] Cross-account KMS — Lambda account B decrypt S3 SSE-KMS key account A
+  Yêu cầu đề: CMK ở account A encrypt S3; Lambda account B cần decrypt object
+  Đáp án: KMS key policy account A allow Lambda role B + IAM role B có kms:Decrypt (và s3:GetObject)
+  Tip: KMS cross-account = key policy (resource) VÀ identity policy — thiếu 1 trong 2 đều Denied
+  Tip: KMS key không copy sang account B; không replicate key như S3 CRR
+  Lỗi hay nhầm: AssumeRole account A — không cần nếu key policy + IAM đủ; copy/replicate KMS key
+
+[Câu] Secrets Manager RDS password — app break sau 6 tháng password đổi
+  Yêu cầu đề: Password RDS trong Secrets Manager; app lấy lúc startup; sau vài tháng break vì password changed
+  Đáp án: Automatic rotation — Secrets Manager đổi password RDS; app không lấy version mới (AWSCURRENT)
+  Tip: GetSecretValue mặc định trả AWSCURRENT; cache password startup-only = stale sau rotation
+  Tip: Fix: gọi GetSecretValue mỗi connect hoặc dùng rotation Lambda hook refresh app
+  Lỗi hay nhầm: 30-day deletion schedule (chỉ khi schedule delete secret); KMS key rotation không invalidate secret value
 
 --------------------------------------------------------------------------------
 16. CI/CD
@@ -702,8 +1054,13 @@ MỤC LỤC NHANH
 
 [Câu] buildspec.yml — ở ROOT repo
   Yêu cầu đề: Jenkins → CodeBuild; build steps as code; bẫy subfolder
+  Yêu cầu đề: Q73 — thứ tự 4 phases trong buildspec (đề hỏi trực tiếp)
   Đáp án: buildspec.yml ở ROOT — phases install → pre_build → build → post_build
+  Tip: install = runtime/deps; pre_build = login ECR, lint; build = compile/test; post_build = push artifact
   Tip: post_build: s3 sync, docker push, cloudfront create-invalidation
+  Lỗi hay nhầm: pre_build trước install — sai thứ tự cố định
+  Lỗi hay nhầm: build trước pre_build — sai
+  Lỗi hay nhầm: source/deploy — không phải phase buildspec (source=Pipeline; deploy=CodeDeploy/appspec)
 
 [Câu] appspec.yml — CodeDeploy
   Yêu cầu đề: Deploy artifact lên EC2/ECS — destination, hooks
@@ -719,6 +1076,15 @@ MỤC LỤC NHANH
   Yêu cầu đề: Nhiều Maven build song song — cần scale compute
   Đáp án: CodeBuild fully managed — tự scale parallel, không cần ASG
   Lỗi hay nhầm: Bật Auto Scaling cho CodeBuild
+
+[Câu] Q71 — unit + integration test song song trong Build stage
+  Yêu cầu đề: CodePipeline Build stage — chạy unit test và integration test song song để giảm thời gian build
+  Yêu cầu đề: Hỏi feature CodeBuild nào hỗ trợ nhiều build group chạy parallel (có thể khai báo dependency)
+  Đáp án: CodeBuild batch builds với build graph — build groups chạy song song, phụ thuộc tùy chọn
+  Tip: batch build + build-graph trong buildspec; từ khóa đề "build groups in parallel" → batch builds
+  Lỗi hay nhầm: CODEBUILD_PARALLEL=true — biến môi trường không tồn tại
+  Lỗi hay nhầm: Step Functions — orchestration ngoài CodeBuild, không phải feature CodeBuild
+  Lỗi hay nhầm: Nhiều CodeBuild project parallel trong Pipeline — có thể làm nhưng đề hỏi feature native của CodeBuild
 
 [Câu] CodeBuild cache dependencies S3
   Yêu cầu đề: 100+ Java deps — mỗi build download lại chậm
@@ -769,8 +1135,13 @@ MỤC LỤC NHANH
 
 [Câu] CodeDeploy automatic rollback
   Yêu cầu đề: Deploy fail + auto rollback → chuyện gì xảy ra?
-  Đáp án: CodeDeploy tạo deployment MỚI last known good — ID mới
-  Lỗi hay nhầm: CodePipeline promote SUCCEEDED
+  Yêu cầu đề: Q77 — deploy Lambda; auto rollback nếu p99 latency alarm trigger trong 10 phút sau deploy
+  Đáp án: Bật automatic rollback trong Deployment Group; chỉ định CloudWatch alarm làm rollback trigger
+  Tip: CodeDeploy tự rollback khi alarm vào ALARM trong monitoring window — không cần EventBridge/Lambda custom
+  Tip: Rollback = deployment MỚI về last known good — deployment ID mới (không phải Pipeline promote)
+  Lỗi hay nhầm: CloudWatch Events gọi RollbackDeployment API — workaround, không phải feature native
+  Lỗi hay nhầm: Post-deployment Lambda hook check latency — hooks EC2/ECS; Lambda rollback alarm = Deployment Group config
+  Lỗi hay nhầm: CodePipeline monitor alarm re-deploy — Pipeline không có cơ chế rollback alarm native như CodeDeploy DG
 
 [Câu] CI/CD upload S3 — CloudFront cache cũ
   Yêu cầu đề: CodeBuild upload S3 OK nhưng CF serve stale content
@@ -780,6 +1151,29 @@ MỤC LỤC NHANH
 [Câu] IAM roles CI/CD — nhớ nhanh
   Đáp án: CodeBuild service role | CodePipeline service role | CodeDeploy agent EC2
   Tip: CB role: S3, ECR, Logs, KMS, Connection; CP role: StartBuild, pass artifacts
+
+[Câu] SAM accelerated dev — incremental deploy (không full deploy mỗi commit)
+  Yêu cầu đề: Serverless app; test thay đổi nhỏ nhanh; minimize deployment time; không deploy cả app mỗi commit
+  Đáp án: `sam sync` — đồng bộ thay đổi incremental lên AWS (dev workflow nhanh)
+  Tip: `sam deploy` = full CloudFormation deploy mỗi lần (chậm hơn cho vòng dev); `cdk diff` chỉ xem diff, không deploy
+  Lỗi hay nhầm: sam deploy / cdk deploy khi đề nhấn incremental + accelerated dev loop
+
+[Câu] Q74 — test Lambda local sau sam deploy
+  Yêu cầu đề: SAM define Lambda + API GW; đã sam deploy; cần test function local trước deploy lần sau
+  Đáp án: sam local invoke "FunctionName" --event event.json
+  Tip: sam local * = chạy Lambda/API trong Docker local; không cần deploy lại AWS
+  Tip: sam build/package = chuẩn bị artifact deploy; sam deploy = đẩy lên AWS (không phải test local)
+  Lỗi hay nhầm: sam deploy --local — flag không tồn tại
+  Lỗi hay nhầm: aws lambda invoke --local — AWS CLI không có --local; local invoke thuộc SAM CLI
+
+[Câu] Q75 — truyền ECR image URI Build → Deploy ECS
+  Yêu cầu đề: CodePipeline build Docker → push ECR → update ECS service; pass image URI từ Build sang Deploy
+  Đáp án: S3 artifacts — mỗi stage tạo output artifact lưu S3, stage sau consume input artifact
+  Tip: Build stage output imagedefinitions.json (imageUri); Deploy ECS đọc artifact đó
+  Tip: Artifact store = S3 bucket mặc định của pipeline; KMS encrypt at rest
+  Lỗi hay nhầm: Lambda + DynamoDB shared table — không phải cơ chế native CodePipeline
+  Lỗi hay nhầm: Env var shared across all stages — CodePipeline không share env var giữa stage như vậy
+  Lỗi hay nhầm: SSM Parameter Store — có thể dùng thủ công nhưng đề hỏi cách CodePipeline pass data giữa stages → artifacts S3
 
 --------------------------------------------------------------------------------
 17. CLOUDFORMATION
@@ -826,9 +1220,24 @@ MỤC LỤC NHANH
   Đáp án: AWS::CloudFormation::Stack nested; Custom Resource + Lambda provider
   Tip: Custom Resource gọi Lambda onEvent Create/Update/Delete
 
+[Câu] Q79 — SAM template có ít resource nhưng stack CFN nhiều hơn
+  Yêu cầu đề: SAM AWS::Serverless::Function; sau sam deploy reviewer thấy stack có thêm resource không có trong template SAM
+  Đáp án: SAM = transform (superset) — template SAM được transform thành CFN đầy đủ với resource bổ sung (IAM role, Log Group, API GW…)
+  Tip: template.yaml có Transform: AWS::Serverless-2016-10-31; sam deploy = package + deploy CFN đã transform
+  Tip: 1 dòng AWS::Serverless::Function có thể expand thành Lambda + IAM Role + Log Group + Permission…
+  Lỗi hay nhầm: Duplicate resources rollback safety — không đúng
+  Lỗi hay nhầm: CFN tự import từ stack khác — không liên quan
+  Lỗi hay nhầm: Nested stack cho mỗi function — SAM không tạo nested stack mặc định cho từng function
+
 [Câu] Stack rollback & UPDATE_ROLLBACK_FAILED
   Yêu cầu đề: Update fail rollback; rollback cũng fail kẹt stack
-  Đáp án: ContinueUpdateRollback hoặc skip resource lỗi
+  Yêu cầu đề: Q78 — update stack fail; status ROLLBACK_IN_PROGRESS nghĩa là gì? next step?
+  Đáp án: CFN đang tự đảo ngược update thất bại → khôi phục stack về trạng thái ổn định trước đó
+  Tip: Next step: chờ rollback xong (UPDATE_ROLLBACK_COMPLETE) → fix template/lỗi → update lại
+  Tip: ROLLBACK_IN_PROGRESS = tự động, không cần confirm thủ công; không phải rolling forward
+  Lỗi hay nhầm: Stack fail vĩnh viễn phải xóa tạo lại — chỉ khi UPDATE_ROLLBACK_FAILED kẹt, không phải ROLLBACK_IN_PROGRESS bình thường
+  Lỗi hay nhầm: Chờ developer confirm rollback thủ công — rollback mặc định tự chạy
+  Đáp án (rollback fail): ContinueUpdateRollback hoặc skip resource lỗi
   Tip: Production nên rollback on failure
 
 --------------------------------------------------------------------------------
@@ -844,6 +1253,22 @@ MỤC LỤC NHANH
 
 [Câu] Express use case
   Đáp án: High event rate, short duration
+  Tip: Express phù hợp event-driven, throughput cao, thời gian chạy ngắn
+
+[Câu] Step Functions characteristics (Select two)
+  Yêu cầu đề: Workflow ngân hàng loan approval có bước human approval
+  Yêu cầu đề: Chọn 2 phát biểu đúng về Standard vs Express
+  Đáp án (2): Express phù hợp high event rate + short duration; Standard phù hợp long-running, durable, auditable và hỗ trợ human approval
+  Tip: Mốc thời gian hay ra đề: Express max 5 phút, Standard max 1 năm (KHÔNG phải 180 ngày)
+  Lỗi hay nhầm: Chọn "Standard không hỗ trợ human approval" hoặc "Standard max 180 ngày/6 tháng"
+
+[Câu] Express Workflow — external API callback ~10 phút, không polling
+  Yêu cầu đề: Step Functions gọi payment API bên ngoài; phản hồi chậm (callback)
+  Yêu cầu đề: Workflow chờ callback — không polling
+  Đáp án: Callback pattern — .waitForTaskToken + payment API gọi SendTaskSuccess (task token)
+  Tip: waitForTaskToken = pause workflow, truyền taskToken cho hệ thống ngoài; khi xong gọi SendTaskSuccess/SendTaskFailure
+  Tip: Wait state = timer cố định, không phải callback thật; Loop poll = vi phạm "without polling"
+  Lỗi hay nhầm: Wait 10 phút cố định; sync SDK block; poll mỗi 30s
 
 --------------------------------------------------------------------------------
 19. X-RAY
@@ -854,6 +1279,25 @@ MỤC LỤC NHANH
   Đáp án: AWS_XRAY_DAEMON_ADDRESS (127.0.0.1:2000 hoặc tên container sidecar)
   Tip: Chi tiết sidecar Fargate → tab ECS
 
+[Câu] Q82 — Lambda error tăng, cần trace từng request + call graph
+  Yêu cầu đề: Lambda error rate tăng; CloudWatch metrics mặc định không chỉ code path nào fail
+  Yêu cầu đề: Cần request-level tracing + visualize full call graph kể cả downstream API calls
+  Đáp án: AWS X-Ray — distributed tracing, service map, trace/subsegment theo từng request
+  Tip: Lambda bật Active tracing (X-Ray); SDK/subsegment cho DynamoDB, HTTP, SQS downstream
+  Tip: Từ khóa đề: request-level tracing, call graph, downstream → X-Ray
+  Lỗi hay nhầm: CloudTrail — audit API calls (ai làm gì), không trace performance/code path
+  Lỗi hay nhầm: CloudWatch Logs Insights — query log, không có service map/call graph tự động
+  Lỗi hay nhầm: Container Insights — metrics container ECS/EKS, không phải distributed tracing
+
+[Câu] Q84 — Lambda X-Ray không thấy DynamoDB subsegment
+  Yêu cầu đề: X-Ray trace Lambda → DynamoDB; DynamoDB calls không hiện subsegment trong trace
+  Đáp án: Dùng AWS X-Ray SDK instrument AWS SDK client trong code Lambda (patch boto3/AWS SDK)
+  Tip: Active tracing Lambda chỉ tạo segment Lambda — downstream AWS SDK calls cần X-Ray SDK patch trong code
+  Tip: Python: aws_xray_sdk patch_all() trước import boto3; Node: captureAWS(require('aws-sdk'))
+  Lỗi hay nhầm: Bật X-Ray Active Tracing trên DynamoDB table — DynamoDB không có setting này
+  Lỗi hay nhầm: X-Ray daemon Lambda layer — Lambda tích hợp X-Ray sẵn, không cần daemon; layer không tạo SDK subsegment
+  Lỗi hay nhầm: CloudTrail data events DynamoDB — audit, không phải X-Ray trace
+
 --------------------------------------------------------------------------------
 20. KIẾN TRÚC TỔNG HỢP
 --------------------------------------------------------------------------------
@@ -861,6 +1305,12 @@ MỤC LỤC NHANH
 [Câu] Monolith → HA + scale (SMS API)
   Đáp án: API Gateway + Lambda HOẶC ALB + ECS
   Tip: CloudFront/SES/RDS alone không đủ compute layer
+
+[Câu] Photo app — API GW + Lambda + S3 + DynamoDB (least overhead)
+  Yêu cầu đề: App lưu ảnh mobile 500KB–5MB; sign-up; upload/retrieve; tens of thousands users; least operational overhead
+  Đáp án: Cognito User Pool (accounts) + User Pool authorizer API GW + Lambda + S3 (ảnh) + DynamoDB (metadata + S3 key)
+  Tip: Ảnh lớn → S3, không DynamoDB (limit 400KB/item); User Pool quản lý account, Identity Pool = AWS creds không phải "manage accounts"
+  Lỗi hay nhầm: Identity Pool authorizer / IAM user mỗi user; lưu ảnh binary trong DynamoDB
 
 --------------------------------------------------------------------------------
 21. BẢNG PHÂN BIỆT HAY BẪY
@@ -883,6 +1333,11 @@ Deployment Groups       vs Hooks (nhóm instance vs script lifecycle)
 In-place deploy         vs Blue/Green (update vs swap traffic)
 Fargate sidecar          vs EC2 Daemon Set (X-Ray Fargate = sidecar)
 Task Execution Role     vs Task IAM Role (ECS)
+SnapStart (snapshot restore, cold start nhanh) vs Provisioned Concurrency (instance luôn ấm, không cold start)
+Lambda DLQ (chỉ original event) vs Lambda Destinations On Failure (event + error + response)
+Partition Key (hash → physical partition) vs Sort Key (range → thứ tự trong partition)
+Hot partition skew key (write sharding suffix) vs tăng capacity On-Demand/Auto Scaling
+DynamoDB Stream view: KEYS_ONLY vs NEW_IMAGE vs OLD_IMAGE vs NEW_AND_OLD_IMAGES
 
 --------------------------------------------------------------------------------
 22. LỖI HAY CHỌN NHẦM
@@ -914,6 +1369,11 @@ Task Execution Role     vs Task IAM Role (ECS)
 24. KCL max EC2 = 2× shard hoặc shard cũ — max worker song song = số shard hiện tại (1 shard = 1 lease)
 25. KMS throttle: S3 bucket-level key — chỉ SSE-KMS trên S3; app bulk encrypt dùng Encryption SDK data key caching + backoff/retry
 26. API Gateway access control: IAM SigV4 là hỗ trợ — STS không phải cơ chế authorizer riêng của API GW
+27. Lambda async fail cần error details + response — DLQ chỉ gửi original event; dùng Lambda Destinations On Failure
+28. DynamoDB hot partition / skew key — On-Demand hoặc Auto Scaling không phân tán write; dùng write sharding (random suffix + scatter-gather read)
+29. DynamoDB Stream view type — KEYS_ONLY chỉ PK/SK; cần old + new image → NEW_AND_OLD_IMAGES
+30. GSI query — eventually consistent only; throughput riêng; strong read chỉ base table / LSI
+31. DynamoDB TTL — expiresAt qua rồi item vẫn có thể tồn tại tới 48h; không xóa instant; không ẩn khỏi GetItem
 
 ================================================================================
   END OF FILE

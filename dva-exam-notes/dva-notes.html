@@ -299,7 +299,7 @@
   <h1>AWS <span>DVA-C02</span> — Ghi chú ôn thi</h1>
   <p>Tổng hợp câu hỏi, đáp án và tip nhớ theo service</p>
   <div class="meta">
-    <span>Cập nhật: 2026-06-15</span>
+    <span>Cập nhật: 2026-06-18</span>
     <span>Có sơ đồ Mermaid</span>
     <span>Skill: dva-exam-notes</span>
     <span>dva-notes.txt</span>
@@ -336,7 +336,7 @@
 <main>
 
   <div id="api-gateway" class="tab-panel active" role="tabpanel">
-    <div class="panel-header"><h2>API Gateway</h2><span class="badge">6 câu</span></div>
+    <div class="panel-header"><h2>API Gateway</h2><span class="badge">9 câu</span></div>
     <div class="card">
       <div class="q">API versioning (v1/v2/test)</div>
       <div class="req">
@@ -452,10 +452,97 @@
         <span class="tip">STS ≠ authorizer — chỉ service AssumeRole/GetSessionToken; exam hay liệt kê STS để đ confuser</span>
       </div>
     </div>
+
+    <div class="card">
+      <div class="q">Expose Lambda — latency &amp; cost thấp nhất (không cần API keys / usage plan)</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Lambda cần endpoint HTTP public qua API Gateway</li>
+          <li>Ưu tiên <em>rẻ nhất + latency thấp nhất</em></li>
+          <li>Không cần API keys, usage plans, per-method throttling</li>
+          <li>Bẫy: Private REST API — nhầm "private" với tối ưu chi phí</li>
+        </ul>
+      </div>
+      <div class="a">HTTP API</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Chọn loại API Gateway</div>
+        <pre class="mermaid">flowchart TD
+  Q[Expose Lambda HTTP] --> N{Cần API keys / usage plan / throttling?}
+  N -->|Không + rẻ/nhanh| H[HTTP API]
+  N -->|Có hoặc cần cache / request validator| R[REST API]
+  Q --> W[WebSocket API — realtime 2 chiều, không phải REST đơn giản]
+  Q --> P[Private REST API — chỉ VPC endpoint, không giảm cost/latency public]</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">HTTP API ~70% rẻ hơn REST API; latency thấp hơn; đủ Lambda proxy integration</span>
+        <span class="tip">REST API khi cần: API keys, usage plans, caching, request validation, WAF tích hợp sâu</span>
+        <span class="tip">Private REST API = network isolation (VPC), không phải câu trả lời cho "lowest cost/latency"</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="q">REST API 429 burst — bảo vệ Lambda, serve tối đa request</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>REST API trả <em>429 Too Many Requests</em> khi burst traffic</li>
+          <li>Cần <em>bảo vệ backend Lambda</em> khỏi quá tải</li>
+          <li>Vẫn phục vụ được <em>nhiều request nhất</em> trong giới hạn an toàn</li>
+          <li>Đề hỏi tính năng <em>API Gateway</em> — không phải Lambda</li>
+          <li>Bẫy: Caching (request khác nhau vẫn hit Lambda); Provisioned concurrency (Lambda, không throttle ở GW)</li>
+        </ul>
+      </div>
+      <div class="a">Usage plan — burst limit + rate limit</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Usage plan throttle (token bucket)</div>
+        <pre class="mermaid">flowchart LR
+  C[Client burst] --> G[API Gateway]
+  G -->|trong burst + rate limit| L[Lambda backend]
+  G -->|vượt limit| R429[429 Too Many Requests]
+  UP[Usage plan rate + burst] -.->|kiểm soát| G</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">429 = API GW từ chối TRƯỚC Lambda — usage plan tune rate (RPS ổn định) + burst (spike ngắn)</span>
+        <span class="tip">Caching chỉ giúp request trùng cache key — không bảo vệ burst đa dạng</span>
+        <span class="tip">HTTP API vẫn có throttle; đổi loại API không giải quyết bài toán cấu hình REST</span>
+        <span class="tip">Provisioned concurrency = giảm cold start / reserved Lambda capacity — không phải API GW feature</span>
+        <span class="tip">Usage plan không chỉ để thu phí — gắn API key + quota + rate/burst; exam dùng để bảo vệ Lambda</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="q">Validate query string + headers trước Lambda — không sửa code backend</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Kiểm tra request <em>trước khi</em> tới Lambda backend</li>
+          <li>Required <em>query string parameters</em> và <em>headers</em> phải có mặt</li>
+          <li><em>Không thay đổi code</em> Lambda backend</li>
+          <li>Bẫy: Lambda Authorizer — auth/lookup token, không validate param/header có mặt</li>
+        </ul>
+      </div>
+      <div class="a">Request Validator (REST API)</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Request Validator vs Authorizer</div>
+        <pre class="mermaid">flowchart TD
+  R[Request] --> V{Request Validator}
+  V -->|thiếu query/header/body| E400[400 Bad Request]
+  V -->|OK| A{Authorizer?}
+  A -->|auth fail| E403[403 Forbidden]
+  A -->|auth OK| L[Lambda backend]</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">Request Validator = validate cấu trúc request (body + query + headers có đủ không)</span>
+        <span class="tip">Model = JSON schema cho body; gắn với Request Validator khi validate body</span>
+        <span class="tip">Lambda Authorizer = ai được gọi (token/DynamoDB lookup) — khác validate param</span>
+        <span class="tip">Mapping template = transform data; Resource policy = ai invoke được API</span>
+      </div>
+    </div>
   </div>
 
   <div id="lambda" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>Lambda</h2><span class="badge">3 câu</span></div>
+    <div class="panel-header"><h2>Lambda</h2><span class="badge">8 câu</span></div>
     <div class="card">
       <div class="q">Node.js + dependencies (pg/RDS)</div>
       <div class="a">Zip chung code + node_modules trong 1 file</div>
@@ -514,10 +601,142 @@
       </div>
       <span class="tip">Sync (API GW) không dùng DLQ async</span>
     </div>
+    <div class="card">
+      <div class="q">Async fail — event gốc + error details + function response</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Lambda xử lý <em>async event</em> từ S3 (hoặc SNS, EventBridge…)</li>
+          <li>Invocation <strong>fail</strong>; developer cần debug với <em>event gốc + chi tiết lỗi + function response</em></li>
+          <li>Bẫy: DLQ (chỉ có original event); CloudWatch Alarm (chỉ metric, không payload từng lần fail)</li>
+        </ul>
+      </div>
+      <div class="a">Lambda Destinations — On Failure destination → SQS hoặc SNS</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — DLQ vs Destinations On Failure</div>
+        <pre class="mermaid">flowchart TD
+  S3[S3 event async] --> L[Lambda]
+  L -->|fail hết retry| DLQ[DLQ SQS/SNS]
+  L -->|On Failure destination| DEST[Destinations SQS/SNS]
+  DLQ --> P1["Payload: chỉ original event"]
+  DEST --> P2["requestPayload + responseContext error + responsePayload"]
+  ALM[CloudWatch Alarm] -.->|chỉ Errors metric| SNS2[SNS notify]</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">DLQ = lưu event fail để reprocess — không kèm error details / response</span>
+        <span class="tip">Destinations On Failure = payload đầy đủ cho debug</span>
+        <span class="tip">Destinations cũng có On Success — gửi kết quả thành công sang SQS/SNS/Lambda/EventBridge</span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="q">Lambda Java — data &gt;1MB encrypt/decrypt runtime</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Truyền <em>&gt;1MB</em> data vào Lambda; encrypt/decrypt lúc runtime</li>
+          <li>Bẫy: env var; KMS Encrypt trực tiếp; envelope + env var</li>
+        </ul>
+      </div>
+      <div class="a">Envelope encryption + reference data as file trong deployment package/code</div>
+      <span class="tip">Env var max ~4KB; KMS Encrypt max ~4KB — data lớn = envelope + file</span>
+    </div>
+    <div class="card">
+      <div class="q">Mobile game API — duplicate request / idempotency</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Lambda REST API; mobile app gán <em>unique request ID</em> mỗi lần gọi</li>
+          <li>Traffic spike ngẫu nhiên; client <em>retry</em> khi throttle/timeout</li>
+          <li>Đề hỏi: xử lý duplicate <em>không mất dữ liệu, không inconsistent</em></li>
+          <li>Bẫy: trả lỗi khi duplicate; RDS; ElastiCache Memcached</li>
+        </ul>
+      </div>
+      <div class="a">DynamoDB lưu request ID + Lambda check trước khi xử lý</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Idempotent API</div>
+        <pre class="mermaid">sequenceDiagram
+  participant App as Mobile app
+  participant API as API GW + Lambda
+  participant DDB as DynamoDB
+  App->>API: POST id=abc123
+  API->>DDB: GetItem / conditional Put id=abc123
+  alt ID chưa có
+    DDB-->>API: not found
+    API->>API: Process request
+    API->>DDB: Lưu id + kết quả
+    API-->>App: 200 OK
+  else ID đã có (retry)
+    DDB-->>API: đã xử lý
+    API-->>App: 200 OK (skip / trả kết quả cũ)
+  end</pre>
+      </div>
+      <span class="tip">Không trả error khi duplicate — client sẽ retry thêm; Memcached volatile; RDS không hợp serverless spike</span>
+    </div>
+    <div class="card">
+      <div class="q">Lambda SnapStart — giảm cold start</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Lambda <strong>Java</strong> (hoặc Python 3.12+ / .NET 8) cold start chậm do JVM/runtime init</li>
+          <li>Đề hỏi: cơ chế nào <em>giảm latency khởi động</em> mà không cần giữ instance luôn ấm</li>
+          <li>Bẫy: Provisioned Concurrency (đắt hơn, giữ warm 24/7); chỉ tăng memory/timeout</li>
+        </ul>
+      </div>
+      <div class="a">Bật SnapStart → publish version; Lambda snapshot môi trường đã init, restore khi cold start</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — SnapStart vs cold start thường</div>
+        <pre class="mermaid">flowchart TD
+  P[Publish version + SnapStart ON] --> I[Lambda init JVM/runtime]
+  I --> S[Chụp snapshot môi trường]
+  R[Request mới — cold start] --> RS[Restore từ snapshot]
+  RS --> H[Chạy handler]
+  C[Cold start thường] --> FI[Init JVM từ đầu — chậm]
+  FI --> H2[Chạy handler]</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">SnapStart = snapshot sau init, restore nhanh — vẫn là cold start nhưng rút ngắn thời gian init</span>
+        <span class="tip">Provisioned Concurrency = instance luôn ấm, không cold start — chi phí cao hơn</span>
+        <span class="tip">Runtime: Java 11/17, Python 3.12+, .NET 8</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="q">EventBridge schedule → Lambda không chạy (rule enabled)</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>EventBridge rule <em>schedule</em> (cron 9 AM UTC) target Lambda</li>
+          <li>Rule <em>enabled</em> nhưng Lambda <em>không được invoke</em></li>
+          <li>Đề hỏi: kiểm tra gì <em>đầu tiên</em></li>
+          <li>Bẫy: sửa execution role <code>events:PutEvents</code> — sai hướng permission</li>
+        </ul>
+      </div>
+      <div class="a">Lambda resource-based policy — <code>events.amazonaws.com</code> được <code>lambda:InvokeFunction</code></div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Ai invoke ai?</div>
+        <pre class="mermaid">sequenceDiagram
+  participant EB as EventBridge
+  participant L as Lambda
+  Note over L: Resource policy trên function
+  EB->>L: InvokeFunction
+  alt Có policy events.amazonaws.com
+    L-->>EB: Chạy handler
+  else Thiếu resource policy
+    EB--xL: Access denied — không invoke được
+  end
+  Note over L: Execution role = Lambda gọi AWS khác không liên quan bước này</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">EventBridge → Lambda: cần resource-based policy trên function (principal events.amazonaws.com)</span>
+        <span class="tip">Execution role = quyền Lambda gọi ra (S3, DynamoDB…); không phải ai được gọi Lambda</span>
+        <span class="tip">Add trigger qua Lambda Console thường tự thêm policy; rule tạo thủ công dễ thiếu</span>
+        <span class="tip">Cùng region thường bắt buộc nhưng đề hỏi permission trước khi rule đã enabled</span>
+      </div>
+    </div>
   </div>
 
   <div id="s3" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>S3</h2><span class="badge">18 câu</span></div>
+    <div class="panel-header"><h2>S3</h2><span class="badge">20 câu</span></div>
     <div class="card">
       <div class="q">Private bucket, truy cập tạm thời</div>
       <div class="req">
@@ -541,6 +760,41 @@
   S3-->>User: Cho phép trong thời hạn</pre>
       </div>
     </div>
+
+    <div class="card">
+      <div class="q">External AWS account upload S3 — tạm 2 giờ</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li><em>External AWS account</em> upload vào bucket của bạn</li>
+          <li>Access <em>temporary</em>, expire sau 2 giờ</li>
+          <li>Đề có thể có <em>2 đáp án đúng</em></li>
+          <li>Bẫy: IAM user + access keys; add external user vào group account mình</li>
+        </ul>
+      </div>
+      <div class="a">(B) STS AssumeRole cross-account · (C) Pre-signed PUT URL expiry 2h</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — 2 cách hợp lệ</div>
+        <pre class="mermaid">flowchart TB
+  subgraph B[AssumeRole cross-account]
+    EXT[External account] -->|AssumeRole| ROLE[Role trong account bucket]
+    ROLE --> CREDS[Temp creds 2h]
+    CREDS --> PUT1[S3 PutObject]
+  end
+  subgraph C[Pre-signed URL]
+    OWN[Account bucket owner] -->|generate URL| URL[PUT URL expires 2h]
+    URL --> EXT2[External account dùng URL]
+    EXT2 --> PUT2[S3 PutObject]
+  end</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">Pre-signed URL: đơn giản cho upload có hạn — không cần setup trust role phía external</span>
+        <span class="tip">Cross-account role: trust policy + external AssumeRole → temp session (≤12h)</span>
+        <span class="tip">Access keys IAM user = long-term — anti-pattern dù xóa sau 2h</span>
+        <span class="tip">IAM user thuộc account của họ — không add vào group account bạn</span>
+      </div>
+    </div>
+
     <div class="card">
       <div class="q">Bắt buộc HTTPS (in transit)</div>
       <div class="a">Bucket policy Deny + aws:SecureTransport: false</div>
@@ -688,6 +942,36 @@
         <span class="tip">Mất key = mất object vĩnh viễn — AWS không recover được</span>
         <span class="tip">Copy object SSE-C → phải cung cấp key nguồn và đích</span>
       </div>
+    </div>
+
+    <div class="card">
+      <div class="q">Q91 — medical records: CMK + audit + rotate hàng năm</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>S3 lưu dữ liệu nhạy cảm (medical records); cần <strong>customer-managed key</strong></li>
+          <li><strong>Audit</strong> mọi lần dùng key + <strong>rotate key hàng năm</strong></li>
+          <li>Bẫy: SSE-C (customer-<em>provided</em> ≠ customer-<em>managed</em> CMK)</li>
+        </ul>
+      </div>
+      <div class="a"><strong>SSE-KMS</strong> + <strong>customer-managed CMK</strong> + enable <strong>automatic key rotation</strong></div>
+      <div class="diagram">
+        <div class="diagram-label">So sánh 3 loại key</div>
+        <pre class="mermaid">flowchart TB
+  subgraph SSE3[SSE-S3]
+    A1[AWS quản lý key]
+  end
+  subgraph SSEK[SSE-KMS CMK]
+    A2[Customer managed CMK]
+    A3[CloudTrail audit kms:*]
+    A4[Auto rotation annual]
+  end
+  subgraph SSEC[SSE-C]
+    A5[Client gửi key mỗi request]
+    A6[Không KMS audit/rotation]
+  end</pre>
+      </div>
+      <span class="tip">Customer-managed = CMK trong KMS. Customer-provided = SSE-C gửi key header — khác hẳn. SSE-S3 không CMK riêng.</span>
     </div>
 
     <div class="card">
@@ -909,7 +1193,7 @@
   </div>
 
   <div id="ecs" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>ECS / Fargate / ECR</h2><span class="badge">8 câu</span></div>
+    <div class="panel-header"><h2>ECS / Fargate / ECR</h2><span class="badge">11 câu</span></div>
     <div class="card">
       <div class="q">Serverless + 2 container — sidecar pattern</div>
       <div class="req">
@@ -1038,10 +1322,75 @@
         <span class="tip">Full URI = account.dkr.ecr.region.amazonaws.com/repo:tag</span>
       </div>
     </div>
+    <div class="card">
+      <div class="q">ECS multi-env — API URL + credentials, minimal code change</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>App trên ECS, nhiều environment (dev/test/prod)</li>
+          <li>Lưu API URL, credentials — <em>ít sửa application code</em></li>
+          <li>Bẫy: env vars task definition mỗi deploy; KMS lưu config; file encrypt trong image</li>
+        </ul>
+      </div>
+      <div class="a">SSM Parameter Store — hierarchical path theo env (/app/dev/..., /app/prod/...)</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Parameter Store multi-env</div>
+        <pre class="mermaid">flowchart LR
+  APP[ECS task cùng code] -->|GetParameter path prefix| SSM[Parameter Store]
+  SSM --> DEV[/myapp/dev/api-url]
+  SSM --> PROD[/myapp/prod/api-url]
+  TD[Task definition env vars] -.->|đổi nhiều khi deploy| X[Không optimal]</pre>
+      </div>
+      <span class="tip">App giữ logic GetParameter; chỉ đổi env prefix — Task IAM role cần ssm:GetParameters</span>
+    </div>
+
+    <div class="card">
+      <div class="q">Q97 — one-time migration: Run Task (Fargate)</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Job migration <strong>một lần</strong> trên ECS — chạy xong thì <strong>dừng</strong></li>
+          <li><em>Không</em> cần long-running service</li>
+          <li>Bẫy: ECS Service desiredCount=1; Scheduled Task recurring; Capacity Provider</li>
+        </ul>
+      </div>
+      <div class="a"><strong>Run Task</strong> + <strong>Fargate</strong> — standalone task, container exit → task STOPPED</div>
+      <div class="diagram">
+        <div class="diagram-label">Service vs Run Task</div>
+        <pre class="mermaid">flowchart TB
+  SVC[ECS Service desiredCount=1] -->|fail| RESTART[Restart container]
+  SVC -->|always| RUN[Keep running]
+  RT[Run Task Fargate] -->|job done| STOP[Task STOPPED]</pre>
+      </div>
+      <span class="tip">Long-running web app → Service. Batch/migration/cron one-shot → Run Task hoặc Scheduled Task (nếu đề nói lặp).</span>
+    </div>
+
+    <div class="card">
+      <div class="q">Q99 — ECS + ALB health check &amp; grace period</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>ECS Service nhiều tasks <strong>behind ALB</strong></li>
+          <li>Task <strong>mới</strong> chỉ nhận traffic sau <em>pass health check</em></li>
+          <li>Task <strong>fail</strong> health check → remove khỏi ALB target group</li>
+          <li>Bẫy: container HEALTHCHECK task def; CW auto-scaling; Capacity Provider</li>
+        </ul>
+      </div>
+      <div class="a"><strong>ALB target group health checks</strong> + ECS Service <strong>health check grace period</strong></div>
+      <div class="diagram">
+        <div class="diagram-label">Luồng — task mới join ALB</div>
+        <pre class="mermaid">flowchart LR
+  NEW[New task starting] --> GP[Grace period]
+  GP --> ALB[ALB health check /health]
+  ALB -->|healthy| TRAFFIC[Nhận traffic]
+  ALB -->|unhealthy| OUT[Remove khỏi target group]</pre>
+      </div>
+      <span class="tip">ALB = ai nhận traffic. Grace period = task mới có thời gian boot trước khi bị coi là unhealthy.</span>
+    </div>
   </div>
 
   <div id="beanstalk" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>Elastic Beanstalk</h2><span class="badge">17 câu</span></div>
+    <div class="panel-header"><h2>Elastic Beanstalk</h2><span class="badge">22 câu</span></div>
     <div class="card">
       <div class="q">EB keywords — Application, Environment, Application Version</div>
       <div class="req">
@@ -1066,6 +1415,32 @@
       <div class="tips">
         <span class="tip">Tạo EB → bucket elasticbeanstalk-region-account-id tự động</span>
         <span class="tip">Save configuration chỉ có khi Actions → Save configuration — không tự sinh khi create env</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="q">Decouple job lâu — SQS + Elastic Beanstalk Worker</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Một số function xử lý <em>rất lâu</em>; cần decouple để app vẫn responsive</li>
+          <li>Dùng <em>SQS</em> + Elastic Beanstalk — chọn loại environment</li>
+          <li>Web tier nhận request nhanh → đẩy job vào queue; worker xử lý nền</li>
+          <li>Bẫy: Single Instance Worker node; Load-balancing Autoscaling (đó là Web tier)</li>
+        </ul>
+      </div>
+      <div class="a">Dedicated Worker environment — EC2 poll SQS, xử lý background</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Decouple với EB + SQS</div>
+        <pre class="mermaid">flowchart LR
+  USER[User] --> WEB[Web server env - ALB]
+  WEB -->|enqueue job| SQS[SQS queue]
+  SQS --> WRK[Worker environment poll SQS]
+  WRK --> PROC[Xử lý job lâu]</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">Worker tier = SQS/HTTP poll; Web tier = HTTP cho user</span>
+        <span class="tip">Single Instance + Elastic IP = dev/test web, không pattern decouple SQS</span>
       </div>
     </div>
 
@@ -1218,6 +1593,31 @@
     </div>
 
     <div class="card">
+      <div class="q">Rolling fail một phần — terminate instance failed</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li><em>Rolling deployment</em>; chỉ một số batch deploy thành công, batch khác fail</li>
+          <li>Team <em>terminate</em> instance thuộc batch failed</li>
+          <li>Đề hỏi: sau terminate, EB làm gì với capacity / app version?</li>
+          <li>Bẫy: không replace; version oldest successful; chọn version tay trên Console</li>
+        </ul>
+      </div>
+      <div class="a">EB replace instance → chạy app version từ deployment thành công gần nhất</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Partial rolling failure</div>
+        <pre class="mermaid">flowchart TD
+  DEP[Rolling deploy v2] --> OK[Batch 1-2 OK → v2]
+  DEP --> FAIL[Batch 3+ fail]
+  FAIL --> TERM[Team terminate failed instances]
+  TERM --> ASG[EB/ASG launch instance mới]
+  ASG --> VER[App version = most recent successful deploy]
+  VER --> STABLE[Environment ổn định capacity]</pre>
+      </div>
+      <span class="tip">Auto-heal: EB luôn duy trì desired capacity; version = successful gần nhất, không phải bản fail hay bản cũ nhất</span>
+    </div>
+
+    <div class="card">
       <div class="q">Immutable — EC2 mới hoàn toàn</div>
       <div class="req">
         <div class="req-title">Yêu cầu đề thường gặp</div>
@@ -1257,6 +1657,34 @@
   V2 -->|metrics OK| FULL[100% v2]</pre>
       </div>
       <span class="tip">Chỉ ALB — Classic LB không hỗ trợ; khác Blue/Green swap 2 environment</span>
+    </div>
+
+    <div class="card">
+      <div class="q">EB deploy — mất hết EC2 burst balance (T-series)</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Sau deploy test trên Beanstalk, <em>toàn bộ</em> accumulated burst balance (CPU credit) EC2 bị mất</li>
+          <li>Instance T2/T3/T4g tích lũy credit theo <em>instance ID</em></li>
+          <li>Đề hỏi deployment option nào gây hành vi terminate + fleet mới</li>
+          <li>Bẫy: Rolling; All-at-once; canary fail reset credit</li>
+        </ul>
+      </div>
+      <div class="a">Immutable updates hoặc Traffic splitting</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Khi nào mất burst credit</div>
+        <pre class="mermaid">flowchart TB
+  subgraph keep[Giữ credit — cùng instance]
+    AA[All-at-once update in-place]
+    RO[Rolling update batch trên instance hiện có]
+  end
+  subgraph lose[Mất credit — terminate fleet cũ]
+    IM[Immutable — fleet EC2 mới hoàn toàn]
+    TS[Traffic splitting — fleet canary mới rồi thay fleet cũ]
+  end
+  OLD[Instance cũ + CPU credit] -->|terminate| ZERO[Credit = 0 trên instance mới]</pre>
+      </div>
+      <span class="tip">Credit gắn instance; Immutable/Traffic splitting thay cả fleet → mất hết credit đã tích lũy</span>
     </div>
 
     <div class="card">
@@ -1328,6 +1756,49 @@
       </div>
       <span class="tip">Deployment Groups ≠ Hooks; Hooks = lifecycle script (.ebextensions / console)</span>
     </div>
+
+    <div class="card">
+      <div class="q">Q94 — script cài library trước app start (.ebextensions)</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>EB EC2 — cần chạy <strong>custom script</strong> cài library <em>trước khi application start</em></li>
+          <li>Đặt script ở đâu trong source bundle?</li>
+          <li>Bẫy: Procfile, environment properties, user-data launch template</li>
+        </ul>
+      </div>
+      <div class="a"><code>.ebextensions/*.config</code> — <code>commands</code> hoặc <code>container_commands</code></div>
+      <div class="diagram">
+        <div class="diagram-label">Thứ tự EB provisioning</div>
+        <pre class="mermaid">flowchart LR
+  CMD[commands install lib] --> PLAT[Platform + web server]
+  PLAT --> CC[container_commands]
+  CC --> APP[Deploy app version start]</pre>
+      </div>
+      <span class="tip">Customize instance trên EB → .ebextensions. User-data LT = bypass EB lifecycle, không phải đáp án đề.</span>
+    </div>
+
+    <div class="card">
+      <div class="q">Q95 — bug critical: deploy lại application version cũ</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Sau deploy version mới → bug critical → cần <strong>restore version working</strong> ngay</li>
+          <li>EB giữ lịch sử <strong>Application Versions</strong> (zip trên S3)</li>
+          <li>Bẫy: xóa environment, restart EC2, rollback DNS</li>
+        </ul>
+      </div>
+      <div class="a">Deploy <strong>previous application version</strong> từ Application Versions list lên environment</div>
+      <div class="diagram">
+        <div class="diagram-label">EB rollback = redeploy version cũ</div>
+        <pre class="mermaid">flowchart LR
+  V1[v1 OK] -->|deploy| ENV[Environment]
+  V2[v2 BUG] -->|deploy| ENV
+  ENV -->|rollback| V1</pre>
+      </div>
+      <span class="tip">Restart EC2 ≠ đổi version. Swap URL = blue/green DNS — khác revert app version.</span>
+    </div>
+
     <div class="card">
       <div class="q">RDS trong EB, destroy env</div>
       <div class="a">Snapshot trước khi destroy</div>
@@ -1386,7 +1857,7 @@
   </div>
 
   <div id="ec2" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>EC2 / Auto Scaling / ELB</h2><span class="badge">7 câu</span></div>
+    <div class="panel-header"><h2>EC2 / Auto Scaling / ELB</h2><span class="badge">9 câu</span></div>
     <div class="card">
       <div class="q">Spot + On-Demand + CodeDeploy agent</div>
       <div class="a">Launch Template + User data</div>
@@ -1449,10 +1920,53 @@
       </div>
       <div class="tips"><span class="tip">Custom app metric = Log + Agent + Metric filter; alarm metric = CloudWatch Alarm + SNS (không phải EventBridge)</span></div>
     </div>
+    <div class="card">
+      <div class="q">Reserved Instance — Zonal vs Regional (capacity reservation)</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>EC2 business-critical; cần <em>reserve capacity</em> (ngoài Savings Plans)</li>
+          <li>Đề hỏi loại RI nào đảm bảo capacity</li>
+          <li>Bẫy: Regional RI (chỉ giảm giá linh hoạt region, không reserve AZ)</li>
+        </ul>
+      </div>
+      <div class="a">Zonal Reserved Instances — gắn 1 AZ, capacity reservation trong AZ đó</div>
+      <span class="tip">Regional RI = billing discount linh hoạt AZ; Zonal RI = capacity + discount trong AZ cụ thể</span>
+    </div>
+    <div class="card">
+      <div class="q">Single-tenant hardware — cost-effective nhất</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Compliance/security: EC2 phải chạy trên <em>single-tenant hardware</em></li>
+          <li>Đề hỏi: cách <em>MOST cost-effective</em> để cô lập single tenant</li>
+          <li>Bẫy: Dedicated Hosts (đắt hơn); On-Demand/Spot mặc định (shared tenancy)</li>
+        </ul>
+      </div>
+      <div class="a">Dedicated Instances</div>
+      <div class="diagram">
+        <div class="diagram-label">So sánh tenancy EC2</div>
+        <pre class="mermaid">flowchart TB
+  subgraph shared[Default / On-Demand / Spot]
+    S1[Tenant A]
+    S2[Tenant B]
+    S3[Cùng physical host]
+  end
+  subgraph dedi[Dedicated Instance]
+    D1[Chỉ account của bạn trên host]
+    D2[Trả theo từng instance]
+  end
+  subgraph host[Dedicated Host]
+    H1[Nguyên physical server cho bạn]
+    H2[Trả cả host — đắt nhất]
+  end</pre>
+      </div>
+      <span class="tip">Cần single-tenant rẻ nhất → Dedicated Instances; cần kiểm soát socket/BYOL → Dedicated Hosts</span>
+    </div>
   </div>
 
   <div id="rds" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>RDS</h2><span class="badge">2 câu</span></div>
+    <div class="panel-header"><h2>RDS</h2><span class="badge">3 câu</span></div>
     <div class="card">
       <div class="q">Multi-AZ (chọn 2)</div>
       <div class="req">
@@ -1479,13 +1993,35 @@
       <span class="tip">Multi-AZ = SYNC; Read Replica = ASYNC</span>
     </div>
     <div class="card">
+      <div class="q">Backup retention 3 năm — automated backup không đủ</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Compliance yêu cầu giữ <em>monthly backup</em> trong <em>3 năm</em></li>
+          <li>RDS <em>automated backup</em> retention tối đa ~35 ngày — không đủ</li>
+          <li>Đề hỏi giải pháp nào đáp ứng retention dài hạn</li>
+          <li>Bẫy: bật automatic backups, Multi-AZ, Read Replica</li>
+        </ul>
+      </div>
+      <div class="a">EventBridge/CloudWatch cron → Lambda → tạo manual DB snapshot định kỳ; snapshot giữ đến khi xóa</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Monthly snapshot compliance</div>
+        <pre class="mermaid">flowchart LR
+  CW[CloudWatch/EventBridge cron] --> L[Lambda]
+  L -->|create_db_snapshot| RDS[(RDS)]
+  RDS --> SNAP[Manual snapshot]
+  SNAP -->|giữ 3 năm| ARCH[Compliance archive]</pre>
+      </div>
+      <span class="tip">Automated backup max 35 ngày; manual snapshot = retention tùy ý (xóa thủ công)</span>
+    </div>
+    <div class="card">
       <div class="q">DR PostgreSQL (chọn 2)</div>
       <div class="a">Cross-Region Read Replica + Multi-AZ + backup (same region)</div>
     </div>
   </div>
 
   <div id="dynamodb" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>DynamoDB</h2><span class="badge">16 câu</span></div>
+    <div class="panel-header"><h2>DynamoDB</h2><span class="badge">24 câu</span></div>
     <div class="card" style="border-left: 4px solid #0073bb;">
       <div class="q">Luyện tập RCU / WCU (quiz tương tác)</div>
       <div class="a"><a href="quiz/index.html" style="color:#0073bb;font-weight:700;">Mở trang Practice Quiz →</a> · <a href="quiz/dynamodb-rcu-wcu.html" style="color:#0073bb;">RCU/WCU 22 câu</a> · 4 đáp án/câu + giải thích khi chọn</div>
@@ -1548,6 +2084,80 @@
     </div>
 
     <div class="card">
+      <div class="q">Partition Key vs Sort Key</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Đề hỏi <em>vai trò</em> Partition Key và Sort Key trong DynamoDB</li>
+          <li>Bẫy: Sort Key <em>thay thế</em> Partition Key khi query; cả hai đều optional</li>
+        </ul>
+      </div>
+      <div class="a">Partition Key → physical partition; Sort Key → sắp xếp item trong cùng partition</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Primary Key trong DynamoDB</div>
+        <pre class="mermaid">flowchart TD
+  subgraph PK_ONLY[Simple table]
+    P1[Partition Key HASH] --> PART1[Physical partition]
+  end
+  subgraph COMPOSITE[Composite table]
+    P2[Partition Key HASH] --> PART2[Physical partition]
+    P2 --> SK[Sort Key RANGE]
+    SK --> I1[Item A]
+    SK --> I2[Item B — cùng partition, thứ tự khác]
+  end
+  Q[Query] -->|bắt buộc| PK[Partition Key]
+  Q -->|tùy chọn range/sort| SK2[Sort Key condition]</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">Primary Key = Partition Key hoặc Partition Key + Sort Key</span>
+        <span class="tip">Partition Key bắt buộc; Sort Key optional (simple table không có SK)</span>
+        <span class="tip">Query luôn cần Partition Key — Sort Key chỉ filter/sort trong partition đó</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="q">Tránh overwrite item đã tồn tại (cùng PK)</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>PutItem ghi đè item cùng primary key → data discrepancy</li>
+          <li>Cần <em>ngăn overwrite</em> khi item đã có</li>
+          <li>Bẫy: Atomic Counters; BatchWrite</li>
+        </ul>
+      </div>
+      <div class="a">Conditional writes — ConditionExpression: attribute_not_exists(PK) hoặc attribute_not_exists(SK)</div>
+      <span class="tip">PutItem mặc định overwrite; condition chỉ ghi khi thỏa — fail nếu item đã tồn tại</span>
+    </div>
+
+    <div class="card">
+      <div class="q">Lambda upsert DynamoDB — minimum IAM</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Lambda: <em>đọc</em> item → <em>update</em> attribute hoặc <em>tạo mới</em> nếu chưa có</li>
+          <li>Chọn <em>MINIMUM</em> IAM permissions</li>
+          <li>Bẫy: thêm PutItem; AddItem; GetRecords</li>
+        </ul>
+      </div>
+      <div class="a">dynamodb:GetItem + dynamodb:UpdateItem</div>
+      <span class="tip">UpdateItem = upsert (tạo mới nếu key chưa có) — không cần PutItem</span>
+    </div>
+
+    <div class="card">
+      <div class="q">Backup DynamoDB → S3 download local — NOT feasible</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Backup table DynamoDB ra <em>S3</em> để tải về <em>local</em></li>
+          <li>Đề hỏi option <strong>KHÔNG khả thi</strong> (NOT feasible)</li>
+          <li>Bẫy: nhầm on-demand backup = export S3; bỏ Data Pipeline (thực ra export được)</li>
+        </ul>
+      </div>
+      <div class="a">On-demand backup — lưu backup managed trong DynamoDB, restore table; không ghi file S3 để download</div>
+      <span class="tip">Khả thi: EMR+Hive, Data Pipeline, Glue, hoặc DynamoDB Export to S3 (tính năng export riêng)</span>
+    </div>
+
+    <div class="card">
       <div class="q">BatchGetItem &amp; BatchWriteItem</div>
       <div class="req">
         <div class="req-title">Yêu cầu đề thường gặp</div>
@@ -1589,6 +2199,33 @@
   S --> F[FilterExpression sau khi đọc]</pre>
       </div>
       <span class="tip">Scan + Filter vẫn tốn RCU theo data SCANNED, không phải số row trả về</span>
+    </div>
+
+    <div class="card">
+      <div class="q">Scan table 100 GB — behavior &amp; cost (practice Q12)</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Bối cảnh: table lớn (vd 100 GB), developer chạy <em>Scan</em></li>
+          <li>Đề hỏi: hành vi đọc + mối lo chi phí RCU</li>
+          <li>Bẫy: Scan tự dùng <strong>LSI</strong> optimize; FilterExpression giảm RCU</li>
+        </ul>
+      </div>
+      <div class="a">Scan đọc mọi item trong table/index — RCU theo toàn bộ data scanned (~100 GB), không theo kết quả trả về</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Scan 100 GB + Filter</div>
+        <pre class="mermaid">flowchart TD
+  T[(Table 100 GB)] --> S[Scan đọc TẤT CẢ items]
+  S --> RCU[Tốn RCU ~100 GB]
+  S --> F[FilterExpression lọc sau]
+  F --> OUT[Chỉ vài row trả về]
+  RCU -.->|RCU KHÔNG giảm| OUT
+  LSI[LSI] -.->|KHÔNG tự optimize Scan base table| S</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">LSI = cùng PK, SK khác — chỉ hữu ích khi Query/Scan trực tiếp LSI, không magic optimize Scan table</span>
+        <span class="tip">Query cần PK → chỉ đọc 1 partition → rẻ hơn Scan rất nhiều</span>
+      </div>
     </div>
 
     <div class="card">
@@ -1669,6 +2306,40 @@
     </div>
 
     <div class="card">
+      <div class="q">GSI inverted index — query behavior (PK/SK đảo)</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Base table: <code>PK=userId, SK=orderId</code></li>
+          <li>GSI đảo: <code>PK=orderId, SK=userId</code> — query theo orderId</li>
+          <li>Đề hỏi: khi <em>query GSI</em> expect consistency và throughput thế nào</li>
+          <li>Bẫy: GSI strongly consistent; GSI dùng chung RCU/WCU base table</li>
+        </ul>
+      </div>
+      <div class="a">GSI read = eventually consistent + RCU/WCU provisioned riêng</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Query GSI properties</div>
+        <pre class="mermaid">flowchart LR
+  subgraph BASE[Base table]
+    BT[Query PK userId]
+    BS[Strong hoặc Eventual read]
+    BC[RCU/WCU table]
+  end
+  subgraph GSI_IDX[GSI inverted]
+    GQ[Query PK orderId]
+    GE[Chỉ Eventually consistent]
+    GC[RCU/WCU GSI riêng]
+  end
+  W[PutItem base] --> BC
+  W --> GC</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">GSI không có ConsistentRead=true — chỉ LSI và base table</span>
+        <span class="tip">Đảo PK/SK = access pattern mới; không đổi rule consistency/capacity của GSI</span>
+      </div>
+    </div>
+
+    <div class="card">
       <div class="q">DynamoDB Streams + Lambda</div>
       <div class="req">
         <div class="req-title">Yêu cầu đề thường gặp</div>
@@ -1690,16 +2361,60 @@
     </div>
 
     <div class="card">
+      <div class="q">Streams — view type có old + new image</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Bật DynamoDB Streams + Lambda event source mapping</li>
+          <li>Đề hỏi <em>stream view type</em> nào gồm cả old và new item image</li>
+          <li>Bẫy: KEYS_ONLY (chỉ key); NEW_IMAGE hoặc OLD_IMAGE (chỉ một phía)</li>
+        </ul>
+      </div>
+      <div class="a">NEW_AND_OLD_IMAGES</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — 4 stream view types</div>
+        <pre class="mermaid">flowchart TD
+  subgraph VIEWS[StreamViewType]
+    K[KEYS_ONLY — chỉ PK SK]
+    N[NEW_IMAGE — item sau thay đổi]
+    O[OLD_IMAGE — item trước thay đổi]
+    B[NEW_AND_OLD_IMAGES — cả hai khi có]
+  end
+  INS[INSERT] -->|NewImage| N
+  MOD[MODIFY] -->|OldImage + NewImage| B
+  REM[REMOVE] -->|OldImage| O</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">INSERT chỉ có NewImage; REMOVE chỉ có OldImage — MODIFY mới có cả hai</span>
+        <span class="tip">KEYS_ONLY nhẹ nhất — dùng khi Lambda chỉ cần biết key rồi GetItem</span>
+      </div>
+    </div>
+
+    <div class="card">
       <div class="q">TTL — tự xóa item hết hạn</div>
       <div class="req">
         <div class="req-title">Yêu cầu đề thường gặp</div>
         <ul>
           <li>Session/log tự xóa sau N ngày — <em>không cần cron DeleteItem</em></li>
-          <li>Attribute <em>Number</em> epoch timestamp làm TTL</li>
+          <li>Attribute <em>Number</em> epoch timestamp (vd <code>expiresAt</code>)</li>
+          <li><code>expiresAt</code> đã qua 2 giờ — item còn trong table không?</li>
+          <li>Bẫy: xóa ngay lập tức; ẩn khỏi GetItem; chuyển Glacier</li>
         </ul>
       </div>
-      <div class="a">Enable TTL trên attribute (vd expireAt); DynamoDB xóa nền, không tốn WCU</div>
-      <span class="tip">Xóa TTL không đồng bộ ngay — có thể vài ngày delay; không dùng cho compliance instant delete</span>
+      <div class="a">Enable TTL → DynamoDB xóa nền (không tốn WCU); item <em>có thể vẫn tồn tại</em> — deletion async, tới ~48 giờ</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — TTL timeline</div>
+        <pre class="mermaid">flowchart LR
+  W[Write item expiresAt=T] --> OK[Vẫn đọc/ghi bình thường]
+  OK --> EXP[now &gt; T — eligible delete]
+  EXP --> WAIT[Background delete async]
+  WAIT -->|có thể tới 48h| DEL[Item bị xóa]
+  EXP -.->|trong lúc chờ| READ[GetItem Query Scan vẫn thấy item]</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">TTL ≠ cron DeleteItem — không đảm bảo xóa đúng giây</span>
+        <span class="tip">Không dùng TTL khi cần xóa ngay cho compliance</span>
+      </div>
     </div>
 
     <div class="card">
@@ -1819,6 +2534,43 @@
   OD[On-Demand] -->|trả theo request| PAY[Không cần đặt RCU/WCU trước]</pre>
       </div>
       <span class="tip">On-Demand: không plan capacity; Provisioned: rẻ hơn nếu traffic ổn định, dự đoán được</span>
+      <span class="tip">Chỉ fix throttle tổng throughput — KHÔNG fix hot partition (skew key)</span>
+    </div>
+
+    <div class="card">
+      <div class="q">Hot partition — IoT sensorId, 10 sensor = 90% writes</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>PK = <code>sensorId</code>; vài sensor nhận phần lớn write → <strong>hot partition</strong></li>
+          <li>Đề hỏi: cách <em>phân tán write load</em> (không chỉ tăng capacity tổng)</li>
+          <li>Bẫy: On-Demand; Auto Scaling; GSI với PK phân tán hơn</li>
+        </ul>
+      </div>
+      <div class="a">Write sharding — ghi với <code>sensorId#random(1–N)</code>; đọc scatter-gather qua các suffix</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Hot partition vs write sharding</div>
+        <pre class="mermaid">flowchart TD
+  subgraph HOT[Hot partition — SAI pattern]
+    S1[sensor-42] --> P1[Partition 1 — 90% writes]
+    S1 --> P1
+    S1 --> P1
+    P1 -->|&gt;1000 WCU/s| TH[Throttle]
+  end
+  subgraph SHARD[Write sharding — đúng]
+  W1[sensor-42#3] --> P2[Partition A]
+  W2[sensor-42#7] --> P3[Partition B]
+  W3[sensor-42#1] --> P4[Partition C]
+  R[Read scatter-gather] --> P2
+  R --> P3
+  R --> P4
+  end</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">Mỗi partition ~1000 WCU/s — hot key = 1 partition quá tải dù table còn capacity</span>
+        <span class="tip">On-Demand / Auto Scaling scale tổng — không fix skew partition key</span>
+        <span class="tip">GSI = query pattern — write base table vẫn hit hot PK</span>
+      </div>
     </div>
 
     <div class="card">
@@ -1844,10 +2596,19 @@
   </div>
 
   <div id="sqs" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>SQS</h2><span class="badge">8 câu</span></div>
+    <div class="panel-header"><h2>SQS</h2><span class="badge">9 câu</span></div>
     <div class="card">
       <div class="q">Black Friday volume lớn</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Traffic dự kiến tăng đột biến, lo queue quá tải gây lỗi message</li>
+          <li>Đề hỏi bước phòng ngừa nên làm cho <em>SQS queue</em> trước peak</li>
+          <li>Bẫy: nghĩ SQS cần bật auto scaling hoặc tăng capacity thủ công</li>
+        </ul>
+      </div>
       <div class="a">SQS tự scale, không cần can thiệp</div>
+      <span class="tip">SQS serverless và highly scalable; tập trung tối ưu consumer (Lambda/EC2), DLQ, visibility timeout</span>
     </div>
     <div class="card">
       <div class="q">Poison message</div>
@@ -1872,6 +2633,14 @@
     </div>
     <div class="card">
       <div class="q">Message &gt; 256 KB</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Payload business tăng dần, vượt ngưỡng <em>256 KB/message</em> của SQS</li>
+          <li>Đề hỏi cách để queue vẫn nhận "message lớn hơn"</li>
+          <li>Bẫy: nghĩ có thể tăng quota, dùng multipart, hoặc chỉ gzip là đủ</li>
+        </ul>
+      </div>
       <div class="a">SQS Extended Client + S3</div>
       <div class="diagram">
         <div class="diagram-label">Sơ đồ — SQS Extended Client</div>
@@ -1882,6 +2651,7 @@
   C -->|đọc pointer| S3
   C -->|tải full message| S3</pre>
       </div>
+      <span class="tip">Multipart là của S3 upload; SQS 256 KB là hard limit, không tăng service quota</span>
     </div>
 
     <div class="card">
@@ -2009,10 +2779,40 @@
         <span class="tip">FIFO: exactly-once + ordering; Standard: at-least-once, best-effort order</span>
       </div>
     </div>
+
+    <div class="card">
+      <div class="q">Lambda SQS batch — partial failure, chỉ retry message fail</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Lambda xử lý SQS <em>theo batch</em> (vd 10 message)</li>
+          <li>Một phần batch <em>fail</em>, phần còn lại <em>thành công</em></li>
+          <li>Mặc định fail 1 message → <em>cả batch</em> quay lại queue</li>
+          <li>Đề hỏi: chỉ retry message thất bại</li>
+          <li>Bẫy: batch size = 1; FIFO queue; DeleteMessageBatch thủ công</li>
+        </ul>
+      </div>
+      <div class="a">ReportBatchItemFailures + return batchItemFailures (messageId)</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Partial batch failure</div>
+        <pre class="mermaid">flowchart TD
+  Q[SQS batch 10 msg] --> L[Lambda xử lý]
+  L -->|8 OK| DEL[Event source delete 8 msg]
+  L -->|2 fail| RET[Return batchItemFailures 2 messageId]
+  RET --> Q2[Chỉ 2 msg quay lại queue]</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">Bật FunctionResponseTypes ReportBatchItemFailures trên event source mapping</span>
+        <span class="tip">Response: {"batchItemFailures": [{"itemIdentifier": "messageId"}]}</span>
+        <span class="tip">Batch size = 1: workaround chậm, không phải best practice</span>
+        <span class="tip">FIFO không bật partial batch — feature áp dụng cả Standard và FIFO</span>
+        <span class="tip">Không DeleteMessageBatch thủ công — Lambda integration tự delete message thành công</span>
+      </div>
+    </div>
   </div>
 
   <div id="kinesis" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>Kinesis Data Streams / Firehose</h2><span class="badge">10 câu</span></div>
+    <div class="panel-header"><h2>Kinesis Data Streams / Firehose</h2><span class="badge">13 câu</span></div>
 
     <div class="card">
       <div class="q">Data Streams vs Firehose — chọn service nào</div>
@@ -2094,6 +2894,38 @@
     </div>
 
     <div class="card">
+      <div class="q">productCategory partition key — 10 shard, 1 shard 90% traffic</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Partition key <em>low-cardinality</em> (vd <code>productCategory</code> — vài category)</li>
+          <li>Nhiều shard nhưng <em>1 shard ~90% traffic</em> (hot shard)</li>
+          <li>Đề hỏi <em>root cause + solution</em> cùng lúc</li>
+          <li>Bẫy: round-robin; EFO; tăng Lambda memory</li>
+        </ul>
+      </div>
+      <div class="a">Hot shard do key ít giá trị → dùng <code>productId</code> (high-cardinality) hoặc suffix ngẫu nhiên</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Low vs high cardinality</div>
+        <pre class="mermaid">flowchart LR
+  subgraph BAD[productCategory low cardinality]
+    PK1[Electronics 90%] --> S0[Shard-0 HOT]
+    PK2[Books 5%] --> S1[Shard-1 idle]
+  end
+  subgraph GOOD[productId high cardinality]
+    ID1[id=1001] --> SA[Shard A]
+    ID2[id=8842] --> SB[Shard B]
+    ID3[id=5521] --> SC[Shard C]
+  end</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">Kinesis hash partition key — KHÔNG round-robin; cùng key → cùng shard</span>
+        <span class="tip">Fix: productId hoặc category#random(1-N); đọc scatter-gather nếu dùng suffix</span>
+        <span class="tip">Thêm shard không giúp nếu key vẫn skew</span>
+      </div>
+    </div>
+
+    <div class="card">
       <div class="q">KCL trên EC2 — max instance sau split shard (6 → 10)</div>
       <div class="req">
         <div class="req-title">Yêu cầu đề thường gặp</div>
@@ -2123,6 +2955,46 @@
         <span class="tip">KCL: 1 shard chỉ 1 worker giữ lease (DynamoDB) tại một thời điểm → max parallel = số shard</span>
         <span class="tip">Min có thể 1 EC2 xử lý nhiều shard; đề hỏi MAX thì = số shard, không phải số shard cũ (6)</span>
         <span class="tip">Bẫy: chọn 2× shard (20) — KCL không cho 2 worker cùng xử lý 1 shard trong cùng consumer app</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="q">KPL producer — ProvisionedThroughputExceeded (chọn 2)</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>IoT real-time qua <em>KPL</em> ghi vào Kinesis → <strong>ProvisionedThroughputExceeded</strong></li>
+          <li>Chọn <em>2</em> hành động xử lý producer throttle / thiếu capacity</li>
+          <li>Bẫy: EFO (consumer read); đổi Kinesis Agent; đổi SQS</li>
+        </ul>
+      </div>
+      <div class="a">(1) Producer retry exponential backoff · (2) Tăng số shard (split)</div>
+      <span class="tip">EFO = nhiều consumer lag đọc — không fix KPL ghi vượt 1 MB/s/shard</span>
+    </div>
+
+    <div class="card">
+      <div class="q">4 shard, producer 6 MB/s — consumer lag</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Stream có <em>N shard</em>; producer ghi <em>vượt</em> tổng ingest capacity</li>
+          <li>Consumer <em>falling behind</em> (lag)</li>
+          <li>Bẫy: Enhanced fan-out — chỉ giúp <em>read</em>, không tăng write capacity</li>
+        </ul>
+      </div>
+      <div class="a">Resharding — split/thêm shard</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Tính capacity shard</div>
+        <pre class="mermaid">flowchart LR
+  P[Producer 6 MB/s] --> S[4 shard x 1 MB/s = 4 MB/s max]
+  S -->|vượt capacity| LAG[Consumer lag + throttle]
+  FIX[Split thêm shard] --> S2[6+ shard = 6+ MB/s]
+  S2 --> OK[Producer + consumer theo kịp]</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">1 shard ingest = 1 MB/s (hoặc 1000 records/s); 4 shard max 4 MB/s</span>
+        <span class="tip">6 MB/s &gt; 4 MB/s → cần resharding (split shard)</span>
+        <span class="tip">EFO = dedicated read 2 MB/s/consumer — không fix producer write vượt shard</span>
       </div>
     </div>
 
@@ -2261,7 +3133,7 @@
   </div>
 
   <div id="storage" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>EFS / EBS</h2><span class="badge">3 câu</span></div>
+    <div class="panel-header"><h2>EFS / EBS</h2><span class="badge">4 câu</span></div>
     <div class="card">
       <div class="q">File storage, hàng trăm EC2, ít truy cập</div>
       <div class="a">EFS Standard-IA</div>
@@ -2283,10 +3155,22 @@
       <div class="q">io1 200 GiB max IOPS</div>
       <div class="a">200 × 50 = 10,000 IOPS max</div>
     </div>
+    <div class="card">
+      <div class="q">gp2 — kích thước nào đạt max IOPS?</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>EC2 dùng <em>gp2</em>; hỏi volume size khi chạm <em>IOPS tối đa</em></li>
+          <li>Bẫy: chọn size lớn nhất (16 TiB) thay vì size <em>bắt đầu</em> đạt cap</li>
+        </ul>
+      </div>
+      <div class="a">~5.3 TiB — gp2: 3 IOPS/GiB, max 16,000 IOPS → 16,000 ÷ 3 ≈ 5,333 GiB</div>
+      <span class="tip">Từ ~5.3 TiB trở lên IOPS vẫn 16,000 — không tăng thêm dù volume lớn hơn</span>
+    </div>
   </div>
 
   <div id="elasticache" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>ElastiCache — Redis / Memcached</h2><span class="badge">9 câu</span></div>
+    <div class="panel-header"><h2>ElastiCache — Redis / Memcached</h2><span class="badge">10 câu</span></div>
 
     <div class="card">
       <div class="q">Redis vs Memcached — tổng quan</div>
@@ -2398,6 +3282,35 @@
       <div class="q">Stale OK ≤ 1 phút</div>
       <div class="a">Lazy Loading + TTL</div>
     </div>
+
+    <div class="card">
+      <div class="q">Deploy app mới — query logic đổi, Redis stale</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Redis cache kết quả query DB; deploy <em>version app mới</em> logic query khác</li>
+          <li>Key cache cũ vẫn hit → <em>stale data</em></li>
+          <li>Đề hỏi cách <em>invalidate</em> entry bị ảnh hưởng</li>
+          <li>Bẫy: restart cluster; TTL=0; Memcached auto invalidation</li>
+        </ul>
+      </div>
+      <div class="a">Versioned cache key prefix — <code>v2:query:userId</code></div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Versioned cache keys</div>
+        <pre class="mermaid">flowchart LR
+  V1[App v1] --> K1[v1:query:123]
+  V2[App v2 deploy] --> K2[v2:query:123]
+  K1[(Redis v1 keys stale)] -.->|ignore| V2
+  K2 --> DB[(DB new query logic)]</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">Prefix version trong key — deploy mới = namespace mới, không đụng key cũ</span>
+        <span class="tip">Key v1 expire theo TTL/eviction — không cần flush toàn cluster</span>
+        <span class="tip">Write Through = mỗi write; versioned key = invalidate khi đổi logic/schema app</span>
+        <span class="tip">TTL=0 = tắt cache tạm — không phải invalidation pattern production</span>
+      </div>
+    </div>
+
     <div class="card">
       <div class="q">Redis cấu hình — chọn 2 đúng</div>
       <div class="req">
@@ -2465,22 +3378,226 @@
   </div>
 
   <div id="iam" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>IAM / Security</h2><span class="badge">3 câu</span></div>
+    <div class="panel-header"><h2>IAM / Security</h2><span class="badge">16 câu</span></div>
     <div class="card">
-      <div class="q">Cross-account token + resource policy</div>
-      <div class="a">Secrets Manager</div>
+      <div class="q">EC2 chat API token — cross-account + resource policy</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>EC2 cần lưu <em>access token</em> (API key) để gọi chat API khi phát hiện invalid transaction</li>
+          <li>Mã hóa <em>at rest</em> (KMS) và <em>in transit</em> (HTTPS/TLS)</li>
+          <li>Token phải truy cập được từ <em>other AWS accounts</em> qua <em>resource-based policy</em></li>
+          <li>Minimize management overhead — không hardcode token trên EC2</li>
+        </ul>
+      </div>
+      <div class="a">Secrets Manager + KMS CMK + resource policy trên secret; EC2 instance role GetSecretValue</div>
       <div class="diagram">
         <div class="diagram-label">Sơ đồ — Secrets Manager cross-account</div>
         <pre class="mermaid">flowchart LR
-  RA[Role Account A] -->|resource policy cho phép| SM[Secrets Manager B]
-  SM --> SEC[Secret value]
-  PS[Parameter Store] -.->|KHÔNG có resource policy| X[Không dùng case này]</pre>
+  EC2[EC2 instance role] -->|GetSecretValue HTTPS| SM[Secrets Manager]
+  SM -->|decrypt| KMS[KMS CMK]
+  SM -->|resource policy allow| ACC[Other AWS accounts]
+  PS[Parameter Store] -.->|KHÔNG resource policy| X[Sai khi đề yêu cầu resource policy]
+  S3[S3 object] -.->|bucket policy khác secret| Y[Không phải secret store chuẩn]
+  DDB[DynamoDB] -.->|không resource policy| Z[Sai]</pre>
       </div>
-      <span class="tip">Parameter Store KHÔNG có resource policy</span>
+      <span class="tip">Đề có "resource-based policy" + cross-account secret/token → Secrets Manager; Parameter Store chỉ IAM identity policy</span>
     </div>
+
+    <div class="card">
+      <div class="q">ABAC — EC2 start/stop theo tag team (user ↔ instance)</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Triển khai <em>ABAC</em> (Attribute-Based Access Control)</li>
+          <li>Engineer chỉ <em>start/stop</em> EC2 có tag <code>team</code> trùng tag <code>team</code> trên IAM user</li>
+          <li>Bẫy: Permission boundary; SCP; EC2 resource policy</li>
+        </ul>
+      </div>
+      <div class="a">IAM policy Condition — <code>aws:ResourceTag/team</code> = <code>aws:PrincipalTag/team</code></div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — ABAC tag matching</div>
+        <pre class="mermaid">flowchart LR
+  U[IAM user tag team=Alpha] -->|PrincipalTag| POL[IAM policy Condition]
+  EC2[EC2 tag team=Alpha] -->|ResourceTag| POL
+  POL -->|match| ALLOW[ec2:StartInstances StopInstances]
+  EC2B[EC2 tag team=Beta] -->|no match| DENY[Denied]</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">Gắn tag team lên IAM user/role (PrincipalTag) và EC2 (ResourceTag)</span>
+        <span class="tip">Permission boundary = trần quyền tối đa — không thay condition ABAC</span>
+        <span class="tip">SCP = Organizations account guardrail — không phải feature ABAC chi tiết EC2</span>
+        <span class="tip">EC2 không có resource-based policy như S3/Lambda</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="q">Cognito + S3 — mỗi user chỉ access file của mình</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>App dùng <em>Cognito User Pool</em> (auth) + <em>Identity Pool</em> (AWS creds)</li>
+          <li>Upload/download file 5 KB–500 MB lên S3; mỗi user chỉ thấy file của mình</li>
+          <li>Đề hỏi giải pháp <em>most efficient</em></li>
+          <li>Bẫy: Lambda@Edge, API GW+Lambda proxy, S3 Event validate sau upload</li>
+        </ul>
+      </div>
+      <div class="a">IAM policy trên role Identity Pool — path <code>private/${cognito-identity.amazonaws.com:sub}/*</code></div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Cognito identity prefix</div>
+        <pre class="mermaid">flowchart LR
+  U[User login User Pool] --> ID[Identity Pool temp creds]
+  ID -->|SigV4 Put/Get| S3[(S3)]
+  POL[IAM policy prefix sub] -->|chỉ path của user| S3
+  L@E[Lambda@Edge] -.->|overhead| X[Không efficient]</pre>
+      </div>
+      <span class="tip">Client gọi S3 trực tiếp — không cần Lambda proxy từng file</span>
+    </div>
+
+    <div class="card">
+      <div class="q">Mobile — User Pool → DynamoDB trực tiếp (no backend API)</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Sign-in qua <em>Cognito User Pool</em></li>
+          <li>Mobile app gọi <em>DynamoDB trực tiếp</em> — không backend API</li>
+          <li>Đề hỏi <em>sequence steps</em> đúng</li>
+          <li>Bẫy: User Pool trả IAM creds; JWT gọi DynamoDB trực tiếp</li>
+        </ul>
+      </div>
+      <div class="a">User Pool → JWT → Identity Pool → temp AWS creds → DynamoDB (SigV4)</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — User Pool + Identity Pool</div>
+        <pre class="mermaid">sequenceDiagram
+  participant App as Mobile app
+  participant UP as User Pool
+  participant IP as Identity Pool
+  participant DDB as DynamoDB
+  App->>UP: Sign-in
+  UP-->>App: JWT (id/access token)
+  App->>IP: Exchange JWT
+  IP-->>App: Temp AWS creds
+  App->>DDB: PutItem/GetItem SigV4</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">User Pool = authentication + JWT — không cấp AWS credentials</span>
+        <span class="tip">Identity Pool = đổi federated identity lấy temp IAM creds</span>
+        <span class="tip">DynamoDB API cần SigV4 — JWT không thay AWS credentials</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="q">Cognito sign-up — chặn email domain ngoài công ty</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Custom validation <em>trong lúc sign-up</em> User Pool</li>
+          <li>Reject email domain không thuộc company (vd chỉ @company.com)</li>
+          <li>Bẫy: Pre-authentication (login); attribute rules; CUSTOM_AUTH</li>
+        </ul>
+      </div>
+      <div class="a">Pre sign-up Lambda trigger</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Cognito Lambda triggers sign-up vs login</div>
+        <pre class="mermaid">flowchart LR
+  SU[Sign-up request] --> PRE[Pre sign-up Lambda]
+  PRE -->|allow| CREATE[User created]
+  PRE -->|throw error| REJ[Sign-up rejected]
+  LOGIN[Login request] --> PREA[Pre-authentication Lambda]
+  PREA --> AUTH[Continue auth]</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">Pre sign-up: trước khi tạo user — custom logic domain whitelist</span>
+        <span class="tip">Attribute validation: regex/min/max length — không thay custom Lambda logic</span>
+        <span class="tip">Pre-authentication: trước mỗi lần login — sai timing cho sign-up filter</span>
+        <span class="tip">CUSTOM_AUTH: custom challenge login — không phải validate sign-up email</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="q">Cognito hosted UI — token nào có email + groups?</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>User Pool <em>hosted UI</em>; OAuth authorization code → token endpoint</li>
+          <li>Decode token lấy <em>email</em> và <em>group memberships</em> (<code>cognito:groups</code>)</li>
+          <li>Bẫy: Access token chứa user attributes; Refresh token decode claims</li>
+        </ul>
+      </div>
+      <div class="a">ID token — JWT identity claims (email, sub, cognito:groups)</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — 3 loại token Cognito</div>
+        <pre class="mermaid">flowchart TB
+  CODE[Authorization code] --> TE[Token endpoint]
+  TE --> ID[ID token identity claims email groups]
+  TE --> ACC[Access token API scopes]
+  TE --> REF[Refresh token renew only opaque]
+  ID --> APP[App decode JWT profile]</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">ID token (OIDC): sub, email, cognito:groups — dùng cho user identity/profile</span>
+        <span class="tip">Access token: authorize resource server/API — scopes, không phải profile chính</span>
+        <span class="tip">Refresh token: lấy token mới — không inspect claims</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="q">Refresh token expire 30 ngày — kéo dài ở đâu?</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>User Pool integration; <em>refresh token</em> hết hạn sau 30 ngày</li>
+          <li>Đề hỏi <em>configure ở đâu</em> để extend expiry</li>
+          <li>Bẫy: Identity Pool; Lambda post-auth; password policy</li>
+        </ul>
+      </div>
+      <div class="a">User Pool → App client → Refresh token expiration</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Token TTL config</div>
+        <pre class="mermaid">flowchart LR
+  UP[User Pool] --> AC[App Client settings]
+  AC --> IDT[ID token expiration]
+  AC --> ACT[Access token expiration]
+  AC --> REF[Refresh token expiration]
+  IP[Identity Pool] -.->|AWS temp creds khác| X[Không config User Pool refresh token]</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">Refresh/Access/ID token TTL = App client — không phải pool-wide password policy</span>
+        <span class="tip">Lambda triggers không return custom refresh token TTL</span>
+        <span class="tip">Identity Pool = temp AWS credentials duration — khác OAuth refresh token User Pool</span>
+      </div>
+    </div>
+
     <div class="card">
       <div class="q">EC2 video editing → S3</div>
       <div class="a">Instance role, trust ec2.amazonaws.com</div>
+    </div>
+
+    <div class="card">
+      <div class="q">Test dev không được terminate EC2 — CLI dry-run</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Dev group/profile quyền hạn chế; cần <em>test</em> user không terminate instance</li>
+          <li>Không muốn terminate thật — chỉ kiểm tra permission</li>
+          <li>Bẫy: <code>--test</code>; metadata service; tạo/xóa EC2 thật</li>
+        </ul>
+      </div>
+      <div class="a">AWS CLI <code>--dry-run</code> trên lệnh terminate (vd <code>aws ec2 terminate-instances --dry-run</code>)</div>
+      <span class="tip">Có quyền → DryRunOperation; không quyền → AccessDenied — IAM Policy Simulator cũng dùng được nhưng đề hay chọn dry-run CLI</span>
+    </div>
+    <div class="card">
+      <div class="q">SSL/TLS server certificate — deploy ở đâu (chọn 2)</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Bật HTTPS cho web app trên AWS</li>
+          <li>Chọn <em>2 entity</em> có thể deploy/lưu SSL/TLS server certificate</li>
+          <li>Bẫy: Secrets Manager, SSM, CloudFormation</li>
+        </ul>
+      </div>
+      <div class="a">ACM + IAM (upload server certificate)</div>
+      <span class="tip">Thực tế ưu tiên ACM; IAM server cert legacy cho CLB — cả hai đều đúng trong đề</span>
     </div>
 
     <div class="card">
@@ -2517,10 +3634,142 @@
         <span class="tip">SAI: CloudTrail → CloudWatch — audit/monitor, không fix throttle; Support quota = chậm, không optimal nhất</span>
       </div>
     </div>
+    <div class="card">
+      <div class="q">Encrypt object lớn (11 GB) với KMS — envelope encryption</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Dữ liệu rất lớn (GB) cần “encrypt using KMS”</li>
+          <li>Đề hỏi API/cách làm đúng khi KMS không encrypt trực tiếp toàn bộ payload</li>
+          <li>Bẫy: gọi <em>Encrypt</em> trực tiếp dữ liệu lớn hoặc dùng <em>GenerateDataKeyWithoutPlaintext</em></li>
+        </ul>
+      </div>
+      <div class="a">Gọi <code>GenerateDataKey</code> để lấy (plaintext data key + encrypted data key); dùng plaintext key encrypt dữ liệu local, lưu encrypted data key kèm ciphertext</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Envelope encryption</div>
+        <pre class="mermaid">sequenceDiagram
+  participant App as App
+  participant KMS as KMS (CMK)
+  App->>KMS: GenerateDataKey
+  KMS-->>App: Plaintext data key + Encrypted data key (blob)
+  App->>App: Encrypt 11GB locally (AES-GCM)
+  App->>Store: Save ciphertext + encrypted data key</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">`GenerateDataKeyWithoutPlaintext` chỉ trả encrypted data key → không có key plaintext thì không encrypt local được</span>
+        <span class="tip">`Encrypt` API không dùng cho payload rất lớn; KMS chủ yếu bảo vệ key</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="q">Encrypt file 5 MB — KMS Encrypt reject</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>File vài MB; gọi <code>KMS Encrypt</code> bị reject</li>
+          <li>Đề hỏi cách encrypt large data đúng</li>
+          <li>Bẫy: split 4 KB chunks Encrypt; key rotation; Decrypt với context lớn hơn</li>
+        </ul>
+      </div>
+      <div class="a"><code>GenerateDataKey</code> → encrypt local → lưu ciphertext + encrypted data key</div>
+      <span class="tip">KMS Encrypt max ~4 KB — envelope encryption cho mọi data &gt; 4 KB</span>
+    </div>
+
+    <div class="card">
+      <div class="q">Lambda env var password KMS encrypt — decrypt startup</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>DB password trong env var đã <em>mã hóa KMS</em> (ciphertext)</li>
+          <li>Lambda startup cần <em>plaintext</em> password</li>
+          <li>Bẫy: GenerateDataKey; GetParameterValue (SSM); ReEncrypt</li>
+        </ul>
+      </div>
+      <div class="a"><code>kms:Decrypt</code></div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Có ciphertext rồi thì Decrypt</div>
+        <pre class="mermaid">flowchart LR
+  ENV[Env var ciphertext blob] --> D[kms:Decrypt]
+  D --> PW[Plaintext password]
+  GK[GenerateDataKey] -.->|tạo key mới| X[Không dùng khi đã có ciphertext]</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">Ciphertext sẵn → Decrypt; tạo data key mới → GenerateDataKey</span>
+        <span class="tip">GetParameterValue = SSM, không phải KMS API</span>
+        <span class="tip">Production password thường dùng Secrets Manager — đề hỏi KMS API thì Decrypt</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="q">Cross-account KMS — Lambda B decrypt S3 key account A</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>KMS CMK ở <strong>account A</strong> encrypt S3 objects</li>
+          <li>Lambda ở <strong>account B</strong> cần <code>kms:Decrypt</code></li>
+          <li>Đề hỏi cấu hình — thường cần <em>cả hai phía</em></li>
+          <li>Bẫy: copy KMS key; AssumeRole A; key replication</li>
+        </ul>
+      </div>
+      <div class="a">Key policy (account A) allow role B + IAM role B có kms:Decrypt (+ s3:GetObject)</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — KMS cross-account dual permission</div>
+        <pre class="mermaid">flowchart TB
+  subgraph A[Account A]
+    KEY[KMS CMK key policy allow role B]
+    S3[(S3 SSE-KMS objects)]
+  end
+  subgraph B[Account B]
+    L[Lambda execution role kms:Decrypt + s3:GetObject]
+  end
+  L -->|GetObject| S3
+  L -->|Decrypt| KEY
+  KEY -.->|thiếu key policy| DENY[Access Denied]
+  L -.->|thiếu IAM Decrypt| DENY</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">KMS = resource policy key policy + identity policy IAM — giống S3 cross-account pattern</span>
+        <span class="tip">Không copy CMK sang account B; multi-Region key ≠ cross-account share tự động</span>
+        <span class="tip">AssumeRole A thường không cần khi decrypt trực tiếp với dual policy đủ</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="q">Secrets Manager — app break sau rotation password RDS</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>RDS password trong <em>Secrets Manager</em>; app <em>GetSecretValue lúc startup</em></li>
+          <li>Sau vài tháng app fail — password đã đổi</li>
+          <li>Đề hỏi <em>Secrets Manager feature</em> gây ra</li>
+          <li>Bẫy: deletion schedule 30 ngày; KMS key rotation; rate limit</li>
+        </ul>
+      </div>
+      <div class="a">Automatic rotation — app cache password cũ, không lấy AWSCURRENT mới</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Secret rotation vs app cache</div>
+        <pre class="mermaid">sequenceDiagram
+  participant App
+  participant SM as Secrets Manager
+  participant RDS as RDS
+  App->>SM: GetSecretValue startup
+  SM-->>App: password v1
+  Note over SM,RDS: 6 tháng sau auto rotation
+  SM->>RDS: đổi password v2
+  App->>RDS: connect password v1 cached
+  RDS-->>App: auth fail</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">Rotation tạo secret version mới — AWSCURRENT trỏ version latest</span>
+        <span class="tip">App chỉ đọc 1 lần startup → stale sau rotation</span>
+        <span class="tip">30-day = recovery window khi DELETE secret — không phải rotation</span>
+        <span class="tip">KMS CMK rotation vẫn decrypt secret cũ — không đổi password RDS</span>
+      </div>
+    </div>
   </div>
 
   <div id="cicd" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>CI/CD — CodePipeline / CodeBuild / CodeDeploy</h2><span class="badge">18 câu</span></div>
+    <div class="panel-header"><h2>CI/CD — CodePipeline / CodeBuild / CodeDeploy</h2><span class="badge">22 câu</span></div>
 
     <div class="card">
       <div class="q">3 dịch vụ CI/CD — vai trò &amp; file config</div>
@@ -2549,23 +3798,25 @@
     </div>
 
     <div class="card">
-      <div class="q">buildspec.yml — ở ROOT repo</div>
+      <div class="q">buildspec.yml — ở ROOT repo (Q73: thứ-lự phases)</div>
       <div class="req">
         <div class="req-title">Yêu cầu đề thường gặp — chat marathon</div>
         <ul>
           <li>Chuyển Jenkins → CodeBuild, định nghĩa build steps <em>bằng code</em></li>
+          <li>Q73: thứ tự <strong>4 phases</strong> trong buildspec — thứ tự cố định, không đảo</li>
           <li>Bẫy: buildspec trong subfolder <code>codebuild/</code> — phải ở <strong>root</strong> repo (hoặc chỉ định path trong project)</li>
+          <li>Bẫy Q73: <code>source</code> / <code>deploy</code> — không phải phase buildspec</li>
         </ul>
       </div>
-      <div class="a">buildspec.yml ở ROOT — phases: install → pre_build → build → post_build</div>
+      <div class="a">install → pre_build → build → post_build</div>
       <div class="diagram">
         <div class="diagram-label">Sơ đồ — buildspec phases</div>
         <pre class="mermaid">flowchart LR
-  I[install deps runtime] --> P[pre_build test lint]
-  P --> B[build compile]
+  I[install deps runtime] --> P[pre_build login lint]
+  P --> B[build compile test]
   B --> PO[post_build push S3 ECR]</pre>
       </div>
-      <span class="tip">post_build: aws s3 sync, docker push, cloudfront create-invalidation</span>
+      <span class="tip">install trước pre_build — phải cài deps/runtime mới chạy pre_build. source = Pipeline stage; deploy = CodeDeploy/appspec.</span>
     </div>
 
     <div class="card">
@@ -2604,6 +3855,28 @@
       </div>
       <div class="a">CodeBuild fully managed — tự scale, parallel builds, không cần ASG</div>
       <span class="tip">Mỗi build = compute riêng; xong thì giải phóng — giống pattern SQS serverless</span>
+    </div>
+
+    <div class="card">
+      <div class="q">Q71 — unit + integration test song song (batch build graph)</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>CodePipeline <strong>Build stage</strong> — unit test và integration test cần chạy <em>song song</em> để rút ngắn build time</li>
+          <li>Đề hỏi: feature CodeBuild nào cho phép nhiều <strong>build groups</strong> parallel (có thể khai báo dependency)?</li>
+          <li>Bẫy: <code>CODEBUILD_PARALLEL=true</code> — không phải biến môi trường thật</li>
+        </ul>
+      </div>
+      <div class="a">CodeBuild <strong>batch builds</strong> với <strong>build graph</strong> — các build group chạy parallel, dependency tùy chọn</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — batch build graph</div>
+        <pre class="mermaid">flowchart LR
+  SRC[Source artifact] --> U[Build group: unit tests]
+  SRC --> I[Build group: integration tests]
+  U --> MERGE[Batch complete]
+  I --> MERGE</pre>
+      </div>
+      <span class="tip">Từ khóa đề: "build groups in parallel" → batch builds + build-graph trong buildspec. Nhiều CodeBuild project trong Pipeline parallel được nhưng đề thi thường chỉ feature native CodeBuild.</span>
     </div>
 
     <div class="card">
@@ -2750,16 +4023,25 @@
     </div>
 
     <div class="card">
-      <div class="q">CodeDeploy automatic rollback</div>
+      <div class="q">CodeDeploy automatic rollback (Q77: CloudWatch alarm trigger)</div>
       <div class="req">
         <div class="req-title">Yêu cầu đề thường gặp — chat extended</div>
         <ul>
-          <li>Deploy fail + bật automatic rollback → chuyện gì xảy ra?</li>
-          <li>Bẫy: CodePipeline promote SUCCEEDED</li>
+          <li>Deploy fail + bật automatic rollback → CodeDeploy tạo deployment <em>mới</em> về revision tốt trước đó</li>
+          <li>Q77: CodeDeploy deploy <strong>Lambda</strong>; p99 latency alarm trigger trong 10 phút → auto rollback</li>
+          <li>Bẫy: EventBridge + RollbackDeployment API, Lambda hook check latency, CodePipeline monitor alarm</li>
         </ul>
       </div>
-      <div class="a">CodeDeploy tạo deployment MỚI của last known good revision — deployment ID mới</div>
-      <span class="tip">Rollback là việc CodeDeploy, không phải Pipeline promote stage</span>
+      <div class="a">Deployment Group → <strong>Enable automatic rollback</strong> → chọn <strong>CloudWatch alarm</strong> làm rollback trigger</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — alarm-triggered rollback</div>
+        <pre class="mermaid">flowchart LR
+  DEP[CodeDeploy Lambda deploy] --> MON[Monitoring window 10 min]
+  MON --> CW[CloudWatch p99 alarm]
+  CW -->|ALARM| RB[Auto rollback → last known good]
+  RB --> NEW[New deployment ID]</pre>
+      </div>
+      <span class="tip">Rollback trigger native = Deployment Group config. Rollback ≠ Pipeline promote SUCCEEDED.</span>
     </div>
 
     <div class="card">
@@ -2784,10 +4066,68 @@
         <span class="tip">Encrypt: KMS artifact; không nhầm SSL in-transit với at-rest</span>
       </div>
     </div>
+    <div class="card">
+      <div class="q">SAM accelerated dev — incremental deploy</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Serverless SAM; test thay đổi nhỏ mỗi commit; <em>không</em> full deploy cả app</li>
+          <li>Minimize deployment time — accelerated development workflow</li>
+          <li>Bẫy: <code>sam deploy</code>, <code>cdk deploy</code>, <code>cdk diff</code></li>
+        </ul>
+      </div>
+      <div class="a"><code>sam sync</code> — đồng bộ incremental changes lên AWS nhanh</div>
+      <span class="tip">sam deploy = full CFN stack; cdk diff = chỉ so sánh, không deploy</span>
+    </div>
+
+    <div class="card">
+      <div class="q">Q74 — test Lambda local (sam local invoke)</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>SAM define Lambda + API Gateway; đã <code>sam deploy</code> lên AWS</li>
+          <li>Cần <strong>test function trên máy local</strong> trước lần deploy tiếp theo</li>
+          <li>Bẫy: <code>sam deploy --local</code>, <code>aws lambda invoke --local</code></li>
+        </ul>
+      </div>
+      <div class="a"><code>sam local invoke "FunctionName" --event event.json</code></div>
+      <div class="diagram">
+        <div class="diagram-label">SAM CLI — local vs deploy</div>
+        <pre class="mermaid">flowchart LR
+  DEV[Code change] --> BUILD[sam build]
+  BUILD --> LOCAL[sam local invoke / start-api]
+  LOCAL -->|OK| DEPLOY[sam deploy → AWS]
+  LOCAL -->|fail| DEV</pre>
+      </div>
+      <span class="tip">sam local * = Docker local simulate Lambda. aws lambda invoke = gọi function trên AWS (không có --local).</span>
+    </div>
+
+    <div class="card">
+      <div class="q">Q75 — pass data giữa CodePipeline stages (ECS + ECR)</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Pipeline: build Docker → push <strong>ECR</strong> → deploy/update <strong>ECS service</strong></li>
+          <li>Cần truyền <strong>ECR image URI</strong> từ Build stage sang Deploy stage</li>
+          <li>Đề hỏi: CodePipeline pass data giữa stages <em>bằng cơ chế gì</em>?</li>
+          <li>Bẫy: Lambda + DynamoDB, env var shared, SSM Parameter Store</li>
+        </ul>
+      </div>
+      <div class="a"><strong>S3 artifacts</strong> — output artifact stage trước → input artifact stage sau (artifact store S3)</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Docker → ECR → ECS qua artifacts</div>
+        <pre class="mermaid">flowchart LR
+  SRC[Source artifact] --> BUILD[CodeBuild Build]
+  BUILD --> S3[(S3 artifact store)]
+  S3 -->|imagedefinitions.json| DEPLOY[ECS Deploy stage]
+  BUILD --> ECR[(ECR image push)]</pre>
+      </div>
+      <span class="tip">Build post_build ghi imagedefinitions.json vào artifacts; Deploy ECS đọc file đó. Đề hỏi "how data passed between stages" → luôn nghĩ input/output artifacts S3 trước.</span>
+    </div>
   </div>
 
   <div id="cloudformation" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>CloudFormation</h2><span class="badge">9 câu</span></div>
+    <div class="panel-header"><h2>CloudFormation</h2><span class="badge">10 câu</span></div>
 
     <div class="card">
       <div class="q">RDS endpoint trong Outputs</div>
@@ -2963,21 +4303,56 @@
     </div>
 
     <div class="card">
-      <div class="q">Stack rollback &amp; lỗi UPDATE_ROLLBACK_FAILED</div>
+      <div class="q">Q79 — SAM transform → stack có thêm resource</div>
       <div class="req">
         <div class="req-title">Yêu cầu đề thường gặp</div>
         <ul>
-          <li>Update stack fail → CloudFormation <em>rollback</em> về trạng thái cũ</li>
-          <li>Rollback cũng fail → stack kẹt <em>UPDATE_ROLLBACK_FAILED</em></li>
+          <li>Template SAM chỉ khai báo <code>AWS::Serverless::Function</code></li>
+          <li>Sau <code>sam deploy</code>, stack CloudFormation có <strong>thêm resource</strong> không thấy trong file SAM gốc</li>
+          <li>Bẫy: duplicate rollback safety, auto import stack khác, nested stack mỗi function</li>
         </ul>
       </div>
-      <div class="a">ContinueUpdateRollback hoặc skip resources gây lỗi; fix template rồi update lại</div>
-      <span class="tip">Disable rollback chỉ dùng debug — production nên bật rollback on failure</span>
+      <div class="a">SAM = <strong>CloudFormation transform</strong> — expand template SAM thành CFN đầy đủ (IAM role, Log Group, API GW, Permission…)</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — SAM transform</div>
+        <pre class="mermaid">flowchart LR
+  SAM[template.yaml Serverless::Function] --> T[Transform AWS::Serverless-2016-10-31]
+  T --> CFN[Expanded CFN template]
+  CFN --> L[Lambda]
+  CFN --> IAM[IAM Role]
+  CFN --> LG[Log Group]
+  CFN --> APIGW[API Gateway nếu có Events]</pre>
+      </div>
+      <span class="tip">1 dòng Serverless::Function → nhiều resource CFN. Nested stack = pattern riêng (AWS::CloudFormation::Stack), không phải mặc định SAM.</span>
+    </div>
+
+    <div class="card">
+      <div class="q">Stack rollback (Q78: ROLLBACK_IN_PROGRESS)</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Q78: Update stack fail → status <code>ROLLBACK_IN_PROGRESS</code> — nghĩa là gì?</li>
+          <li>CFN <strong>tự đảo ngược</strong> update thất bại, khôi phục stack về trạng thái ổn định trước đó</li>
+          <li>Next step: <strong>chờ</strong> rollback hoàn tất → fix template/lỗi → update lại</li>
+          <li>Bẫy: xóa stack tạo lại (chỉ khi kẹt <code>UPDATE_ROLLBACK_FAILED</code>)</li>
+          <li>Bẫy: rolling forward / chờ confirm rollback thủ công</li>
+        </ul>
+      </div>
+      <div class="a">Đang rollback tự động về last stable state — chờ xong rồi sửa và deploy lại</div>
+      <div class="diagram">
+        <div class="diagram-label">Stack states — update fail</div>
+        <pre class="mermaid">flowchart LR
+  U[UPDATE_IN_PROGRESS] -->|fail| R[ROLLBACK_IN_PROGRESS]
+  R -->|OK| RC[UPDATE_ROLLBACK_COMPLETE]
+  R -->|rollback fail| RF[UPDATE_ROLLBACK_FAILED]
+  RC --> FIX[Fix template] --> RETRY[Update lại]</pre>
+      </div>
+      <span class="tip">ROLLBACK_IN_PROGRESS = bình thường, tự heal. UPDATE_ROLLBACK_FAILED = kẹt → ContinueUpdateRollback / skip resource.</span>
     </div>
   </div>
 
   <div id="other" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>Step Functions / CloudTrail</h2><span class="badge">2 câu</span></div>
+    <div class="panel-header"><h2>Step Functions / CloudTrail</h2><span class="badge">4 câu</span></div>
     <div class="card">
       <div class="q">Không thấy user tạo EBS trong CloudTrail</div>
       <div class="a">Volume tạo lúc RunInstances</div>
@@ -2996,10 +4371,60 @@
       </div>
       <span class="tip">Express max 5 phút</span>
     </div>
+    <div class="card">
+      <div class="q">Step Functions characteristics (Select two)</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Workflow loan approval có bước <em>human approval</em></li>
+          <li>Đề hỏi chọn 2 phát biểu đúng về <em>Standard vs Express</em></li>
+          <li>Bẫy: nhầm thời gian tối đa của Standard thành 180 ngày/6 tháng</li>
+        </ul>
+      </div>
+      <div class="a">Express: high event rate + short duration; Standard: long-running, durable, auditable, hỗ trợ human approval</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Standard vs Express</div>
+        <pre class="mermaid">flowchart LR
+  A[Need human approval or long-running] --> B[Standard Workflow up to 1 year]
+  C[High throughput + short-lived events] --> D[Express Workflow up to 5 minutes]
+  E[Myth: Standard max 180 days] -.-> F[Incorrect]</pre>
+      </div>
+      <span class="tip">Nhớ nhanh: Human step => Standard; burst ngắn nhiều event => Express</span>
+    </div>
+
+    <div class="card">
+      <div class="q">Express Workflow — chờ payment API callback, không polling</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Step Functions gọi <em>external API</em> (payment) — phản hồi chậm, qua callback</li>
+          <li>Workflow phải <em>đợi callback</em> — đề nói rõ <em>without polling</em></li>
+          <li>Bẫy: Wait state cố định; loop poll; sync integration block lâu</li>
+        </ul>
+      </div>
+      <div class="a">Callback pattern — <code>.waitForTaskToken</code> + API gọi <code>SendTaskSuccess</code></div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Callback pattern (task token)</div>
+        <pre class="mermaid">sequenceDiagram
+  participant SF as Step Functions
+  participant Pay as Payment API
+  SF->>Pay: Invoke kèm taskToken
+  Note over SF: Pause chờ callback
+  Pay->>Pay: Xử lý async
+  Pay->>SF: SendTaskSuccess(taskToken, output)
+  SF->>SF: Tiếp tục workflow</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">waitForTaskToken: truyền taskToken cho hệ thống ngoài; workflow pause đến SendTaskSuccess/Failure</span>
+        <span class="tip">Wait state = chờ N giây cố định — không biết API xong lúc nào</span>
+        <span class="tip">Loop + Choice poll 30s = polling — đề yêu cầu tránh</span>
+        <span class="tip">Sync SDK block = giữ execution, timeout với tác vụ dài</span>
+      </div>
+    </div>
   </div>
 
   <div id="xray" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>X-Ray</h2><span class="badge">1 câu</span></div>
+    <div class="panel-header"><h2>X-Ray</h2><span class="badge">3 câu</span></div>
     <div class="card">
       <div class="q">SDK tìm daemon trên ECS</div>
       <div class="req">
@@ -3021,10 +4446,53 @@
       </div>
       <span class="tip">Sidecar Fargate: xem tab ECS; EC2 host: daemon trên instance</span>
     </div>
+
+    <div class="card">
+      <div class="q">Q82 — Lambda error: request-level tracing + call graph</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Lambda <strong>error rate</strong> tăng; CloudWatch metrics mặc định (Errors, Duration…) chỉ aggregate</li>
+          <li>Cần biết <strong>code path nào fail</strong> + visualize <strong>call graph</strong> gồm downstream API calls</li>
+          <li>Bẫy: CloudTrail (audit), Logs Insights (query log), Container Insights (container metrics)</li>
+        </ul>
+      </div>
+      <div class="a"><strong>AWS X-Ray</strong> — distributed tracing: trace/subsegment theo request, service map, latency/error từng hop</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — X-Ray trace Lambda</div>
+        <pre class="mermaid">flowchart LR
+  REQ[Request] --> L[Lambda segment]
+  L --> D[DynamoDB subsegment]
+  L --> H[HTTP API subsegment]
+  L -->|error| X[X-Ray Service Map]</pre>
+      </div>
+      <span class="tip">CloudTrail = ai gọi API AWS (audit). X-Ray = request đi qua service nào, chậm/lỗi ở đâu (tracing).</span>
+    </div>
+
+    <div class="card">
+      <div class="q">Q84 — DynamoDB không hiện subsegment trong X-Ray trace</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Lambda → DynamoDB; đã bật X-Ray nhưng trace <strong>không có DynamoDB subsegment</strong></li>
+          <li>Cần gì để capture downstream DynamoDB calls?</li>
+          <li>Bẫy: Active tracing trên DynamoDB table, X-Ray daemon layer, CloudTrail data events</li>
+        </ul>
+      </div>
+      <div class="a"><strong>AWS X-Ray SDK</strong> — instrument/patch AWS SDK client trong code Lambda (<code>patch_all()</code> / <code>captureAWS</code>)</div>
+      <div class="diagram">
+        <div class="diagram-label">Active tracing vs SDK instrument</div>
+        <pre class="mermaid">flowchart TB
+  AT[Active tracing ON] --> SEG[Lambda segment only]
+  SDK[X-Ray SDK patch boto3] --> SUB[DynamoDB subsegment]
+  SEG --> SDK</pre>
+      </div>
+      <span class="tip">Active tracing ≠ auto subsegment mọi downstream. ECS/EC2 cần daemon; Lambda không cần daemon layer.</span>
+    </div>
   </div>
 
   <div id="arch" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>Kiến trúc tổng hợp</h2><span class="badge">1 câu</span></div>
+    <div class="panel-header"><h2>Kiến trúc tổng hợp</h2><span class="badge">2 câu</span></div>
     <div class="card">
       <div class="q">Monolith → HA + scale (SMS API)</div>
       <div class="a">API Gateway + Lambda HOẶC ALB + ECS</div>
@@ -3036,6 +4504,26 @@
   OPT1 --> HA1[Auto scale + multi-AZ]
   OPT2 --> HA2[Auto scale + multi-AZ]</pre>
       </div>
+    </div>
+    <div class="card">
+      <div class="q">Photo app — API GW + Lambda + S3 + DynamoDB</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Ảnh mobile 500KB–5MB; sign-up; upload/retrieve; scale lớn; <em>least operational overhead</em></li>
+          <li>Bẫy: Identity Pool authorizer; ảnh trong DynamoDB; IAM user mỗi user</li>
+        </ul>
+      </div>
+      <div class="a">User Pool + User Pool authorizer + Lambda + S3 (ảnh) + DynamoDB (S3 key metadata)</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Photo app chuẩn</div>
+        <pre class="mermaid">flowchart LR
+  U[User] -->|JWT| APIGW[API Gateway]
+  APIGW -->|User Pool authorizer| L[Lambda]
+  L --> S3[(S3 images)]
+  L --> DDB[(DynamoDB metadata + S3 key)]</pre>
+      </div>
+      <span class="tip">User Pool = accounts; Identity Pool = temp AWS creds — không dùng Identity Pool để "manage accounts"</span>
     </div>
   </div>
 
@@ -3063,6 +4551,17 @@
         <h3>API GW logging</h3>
         <div class="diagram"><pre class="mermaid">flowchart LR
   EX[Execution logging: debug integration] --- AC[Access logging: ai gọi API]</pre></div>
+      </div>
+      <div class="compare-card">
+        <h3>HTTP API vs REST API</h3>
+        <div class="diagram"><pre class="mermaid">flowchart LR
+  H[HTTP API: rẻ latency thấp Lambda proxy đơn giản] --- R[REST API: API keys usage plan cache validator]
+  R --- P[Private REST API: VPC endpoint only không phải rẻ/nhanh public]</pre></div>
+      </div>
+      <div class="compare-card">
+        <h3>Authorizer vs Request Validator</h3>
+        <div class="diagram"><pre class="mermaid">flowchart LR
+  AUTH[Authorizer: ai được gọi token IAM Cognito] --- VAL[Request Validator: param header body có đủ không]</pre></div>
       </div>
       <div class="compare-card">
         <h3>503 vs 502 vs 504</h3>
@@ -3201,7 +4700,7 @@
       <div class="compare-card">
         <h3>GSI vs LSI</h3>
         <div class="diagram"><pre class="mermaid">flowchart LR
-  GSI[GSI new PK SK own capacity] --- LSI[LSI same PK new SK create only]</pre></div>
+  GSI[GSI new PK SK own capacity eventual read] --- LSI[LSI same PK new SK strong read optional]</pre></div>
       </div>
       <div class="compare-card">
         <h3>DynamoDB RCU — Strong vs Eventual</h3>
@@ -3223,12 +4722,48 @@
         <div class="diagram"><pre class="mermaid">flowchart LR
   TER[Task Execution Role pull image/logs] --- TIR[Task IAM Role app AWS API]</pre></div>
       </div>
+      <div class="compare-card">
+        <h3>Lambda execution role vs resource policy</h3>
+        <div class="diagram"><pre class="mermaid">flowchart LR
+  EXEC[Execution role Lambda gọi ra S3 DDB] --- RES[Resource policy ai invoke được Lambda]</pre></div>
+      </div>
+      <div class="compare-card">
+        <h3>SnapStart vs Provisioned Concurrency</h3>
+        <div class="diagram"><pre class="mermaid">flowchart LR
+  SS[SnapStart snapshot restore cold start nhanh] --- PC[Provisioned Concurrency instance luôn ấm no cold start]</pre></div>
+      </div>
+      <div class="compare-card">
+        <h3>Lambda DLQ vs Destinations On Failure</h3>
+        <div class="diagram"><pre class="mermaid">flowchart LR
+  DLQ[DLQ chỉ original event] --- DEST[Destinations event + error + response]</pre></div>
+      </div>
+      <div class="compare-card">
+        <h3>DynamoDB Partition Key vs Sort Key</h3>
+        <div class="diagram"><pre class="mermaid">flowchart LR
+  PK[Partition Key HASH physical partition] --- SK[Sort Key RANGE order trong partition]</pre></div>
+      </div>
+      <div class="compare-card">
+        <h3>Hot partition vs tăng capacity</h3>
+        <div class="diagram"><pre class="mermaid">flowchart LR
+  HOT[Skew key hot partition write sharding suffix] --- CAP[On-Demand Auto Scaling tổng throughput]</pre></div>
+      </div>
+      <div class="compare-card">
+        <h3>DynamoDB Stream view types</h3>
+        <div class="diagram"><pre class="mermaid">flowchart LR
+  K[KEYS_ONLY PK SK] --- N[NEW_IMAGE sau]
+  O[OLD_IMAGE trước] --- B[NEW_AND_OLD_IMAGES cả hai]</pre></div>
+      </div>
     </div>
   </div>
 
   <div id="mistakes" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>Lỗi hay chọn nhầm</h2><span class="badge">27 mục</span></div>
+    <div class="panel-header"><h2>Lỗi hay chọn nhầm</h2><span class="badge">38 mục</span></div>
     <div class="mistakes">
+      <span class="item">EventBridge không invoke Lambda — chọn execution role events:PutEvents (SAI); đúng là resource policy events.amazonaws.com invoke function</span>
+      <span class="item">SQS partial batch fail — chọn batch size 1 hoặc FIFO (SAI); đúng ReportBatchItemFailures + batchItemFailures list</span>
+      <span class="item">Validate query/header trước Lambda — chọn Lambda Authorizer (SAI); Authorizer = auth; đúng là Request Validator (REST API)</span>
+      <span class="item">429 burst protect Lambda — chọn Caching (SAI); caching chỉ giảm request trùng key; đúng là Usage plan burst + rate limit ở API GW</span>
+      <span class="item">Lowest latency/cost expose Lambda — chọn Private REST API (SAI); Private = VPC-only; đáp án đúng HTTP API khi không cần API keys/usage plan</span>
       <span class="item">API Gateway NOT supported — chọn IAM SigV4 (SAI, có hỗ trợ); đáp án đúng thường là STS (không phải authorizer riêng)</span>
       <span class="item">KMS ThrottlingException app encrypt — bucket-level key SSE-KMS chỉ cho S3, không phải app bulk encrypt; dùng Encryption SDK data key cache</span>
       <span class="item">KCL max EC2 = 2× số shard hoặc số shard cũ — max parallel worker = số shard hiện tại (1 shard = 1 lease)</span>
@@ -3245,6 +4780,7 @@
       <span class="item">Connection pooling giảm DynamoDB latency — SAI, dùng Global Tables / eventual read</span>
       <span class="item">filter-expression thay vì projection-expression (chọn cột Scan)</span>
       <span class="item">Scan thay vì Query khi đã biết partition key</span>
+      <span class="item">Scan tự dùng LSI optimize read — LSI không magic; Scan base table vẫn đọc hết table</span>
       <span class="item">ASG / Auto Scaling cho CodeBuild — CodeBuild tự scale parallel</span>
       <span class="item">CodeDeploy Hooks thay vì Deployment Groups (nhóm EC2 khác nhau)</span>
       <span class="item">Max revisions trên CodePipeline — phải config CodeDeploy Agent trên EC2</span>
@@ -3255,6 +4791,11 @@
       <span class="item">EB cross-account: share Saved Config qua IAM role / Import by name — phải download file + upload S3 account B</span>
       <span class="item">Origin Group failover: cache hit route primary / all origins primary — cache hit không gọi origin</span>
       <span class="item">ECR pull: docker login -u access key -p secret — phải ecr get-login + docker pull full URI</span>
+      <span class="item">Lambda async fail cần error details + response — DLQ chỉ original event; dùng Destinations On Failure</span>
+      <span class="item">DynamoDB hot partition — On-Demand/Auto Scaling không phân tán skew key; dùng write sharding suffix + scatter-gather</span>
+      <span class="item">DynamoDB Stream view — KEYS_ONLY chỉ PK/SK; cần old + new image → NEW_AND_OLD_IMAGES</span>
+      <span class="item">GSI query — chỉ eventually consistent + RCU/WCU riêng; không strong read, không dùng throughput base table</span>
+      <span class="item">DynamoDB TTL — expiresAt qua rồi vẫn có thể tồn tại tới 48h; không xóa instant; vẫn đọc được GetItem/Query</span>
     </div>
 
 </main>
