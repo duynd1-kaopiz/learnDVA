@@ -1,5 +1,5 @@
 ================================================================================
-  AWS DVA-C02 — GHI CHÚ ÔN THI (cập nhật: 2026-06-18)
+  AWS DVA-C02 — GHI CHÚ ÔN THI (cập nhật: 2026-06-21)
   File: dva-exam-notes/dva-notes.txt
   Cập nhật tự động khi giải câu hỏi DVA qua skill dva-exam-notes
 ================================================================================
@@ -88,6 +88,16 @@ MỤC LỤC NHANH
   Tip: Model gắn với Request Validator để validate JSON body schema; query/header chỉ cần Request Validator
   Lỗi hay nhầm: Lambda Authorizer — dùng cho auth/custom token lookup, không phải check param/header có mặt
 
+[Câu] Troubleshoot HTTP 400 API Gateway — xác định nguyên nhân
+  Yêu cầu đề: Client nhận HTTP 400 khi gọi endpoint; developer cần biết nguyên nhân
+  Đáp án: Bật execution logging + access logging trên stage → CloudWatch Logs (tạo log group, gán ARN cho stage)
+  Tip: 400 = Bad Request — thường validation (thiếu query/header/body sai schema) trước hoặc tại integration
+  Tip: Execution log = chi tiết xử lý request/response integration; Access log = mỗi request (status, path, IP, latency)
+  Tip: CloudTrail/CloudTrail Insights = API management calls (CreateApi, UpdateStage) — không log HTTP request client tới endpoint
+  Lỗi hay nhầm: CloudTrail Insights để debug 400 client errors
+  Lỗi hay nhầm: Firehose làm destination log API GW — chuẩn là CloudWatch Logs trực tiếp
+  Lỗi hay nhầm: Chỉ X-Ray — tracing latency/service map; 400 validation thường thấy rõ hơn trong execution/access logs
+
 --------------------------------------------------------------------------------
 2. LAMBDA
 --------------------------------------------------------------------------------
@@ -146,6 +156,15 @@ MỤC LỤC NHANH
   Tip: Service invoke Lambda = resource policy trên function (ai được gọi); execution role = Lambda gọi service khác
   Tip: Tạo trigger qua Console thường auto thêm policy; tạo rule thủ công/IaC dễ thiếu
   Lỗi hay nhầm: Execution role events:PutEvents — Lambda không cần PutEvents để bị EventBridge invoke
+
+[Câu] Traffic shifting Lambda — in-house deploy + alias (chọn 1)
+  Yêu cầu đề: Lambda có alias; deploy bằng in-house solution (không CodeDeploy)
+  Yêu cầu đề: Version mới chỉ nhận fixed % traffic production ban đầu
+  Đáp án: Weighted alias — routing trên alias (AdditionalVersionWeights)
+  Tip: Publish version mới → update alias: version chính + % weight cho version mới
+  Tip: Canary/Linear deployment type = AWS CodeDeploy — không khớp in-house deploy
+  Lỗi hay nhầm: Chọn CodeDeploy canary/linear khi đề nói in-house deployment solution
+  Lỗi hay nhầm: Environment variables — không route traffic giữa versions
 
 --------------------------------------------------------------------------------
 3. S3
@@ -291,6 +310,16 @@ MỤC LỤC NHANH
   Đáp án: CloudFront multiple origins — behavior/path route S3 vs ALB
   Tip: CF cache static ở edge; dynamic forward ALB; Origin Groups = failover không gộp 2 origin thành 1 request
   Lỗi hay nhầm: Global Accelerator (TCP/UDP, không cache static web); Lambda@Edge route thủ công không cần khi multi-origin đủ
+
+[Câu] Photo app — resize theo GET params, cost-effective (chọn 1)
+  Yêu cầu đề: Ảnh gốc S3; CloudFront phân phối; app gửi dimension/resolution qua GET parameters
+  Yêu cầu đề: Optimize ảnh theo thiết bị; giảm load time; MOST cost-effective
+  Đáp án: Lambda@Edge optimize on-demand → trả response + lưu bản processed lên S3 cho request sau
+  Tip: Lazy generation — chỉ tạo variant khi thiết bị thực sự request; không pre-gen hàng trăm kích thước × mọi ảnh
+  Tip: Lưu S3 = request sau lấy từ origin/cache, không chạy lại Lambda@Edge (đắt hơn S3 storage)
+  Lỗi hay nhầm: Chỉ tăng TTL max — cache hết hạn vẫn phải resize lại nếu không lưu S3
+  Lỗi hay nhầm: S3 Batch Operations pre-create mọi variant — compute + storage khổng lồ, không cost-effective
+  Lỗi hay nhầm: Route bằng headers khi đề nói GET parameters
 
 --------------------------------------------------------------------------------
 5. ECS / FARGATE / ECR
@@ -569,6 +598,16 @@ MỤC LỤC NHANH
   Đáp án: EventBridge/CloudWatch cron → Lambda → create manual DB snapshot hàng tháng; snapshot giữ đến khi xóa (có thể 3 năm)
   Tip: Automated backup max 35 ngày; manual snapshot không giới hạn retention như automated
   Lỗi hay nhầm: Enable RDS automatic backups (vẫn chỉ max 35 ngày); Multi-AZ / Read Replica (HA/read scale, không phải long-term backup archive)
+
+[Câu] Lambda fleet + Aurora — single encrypted connection string (chọn 1)
+  Yêu cầu đề: Nhiều Lambda (SNS trigger) ghi Aurora; policy bắt dùng 1 connection string mã hóa chung
+  Đáp án: SSM Parameter Store — SecureString parameter (KMS encrypt)
+  Tip: SecureString = 1 nguồn tập trung; mọi Lambda GetParameter withDecryption cùng path
+  Tip: IAM database authentication = token IAM, không phải lưu connection string mã hóa
+  Lỗi hay nhầm: IAM DB auth khi đề nói rõ connection string
+  Lỗi hay nhầm: Env var KMS mỗi Lambda — không central single source; khó rotate
+  Lỗi hay nhầm: Lưu credential trong RDS — circular, cần credential mới connect được RDS
+
 --------------------------------------------------------------------------------
 
 9. DYNAMODB
@@ -702,6 +741,15 @@ MỤC LỤC NHANH
   Đáp án: Tăng RCU/WCU, Auto Scaling, hoặc chuyển On-Demand
   Tip: On-Demand tự scale, trả theo request; Provisioned rẻ hơn nếu traffic ổn định
   Tip: Chỉ áp dụng khi throttle do TỔNG throughput — KHÔNG fix hot partition (skew key)
+
+[Câu] Insert DynamoDB provisioned — ProvisionedThroughputExceeded (chọn 2)
+  Yêu cầu đề: App ghi (insert) vào DynamoDB provisioned; log báo ProvisionedThroughputExceededException
+  Yêu cầu đề: Có thể nhắc EC2 burstable nano — đó là red herring; bottleneck là DynamoDB throughput
+  Đáp án (2): Exponential backoff (giảm tần suất retry); Chuyển On-Demand capacity mode
+  Tip: Insert/PutItem/UpdateItem = WCU — tăng RCU không giúp write throttle
+  Tip: Giảm retry delay / gửi request dày hơn = làm throttle tệ hơn
+  Tip: Đổi EC2 instance lớn hơn không tăng DynamoDB capacity
+  Lỗi hay nhầm: Chọn tăng RCU khi đề nói insert/write
 
 [Câu] Hot partition — 10 sensor chiếm 90% writes (IoT sensorId PK)
   Yêu cầu đề: Table PK = sensorId; vài key nhận phần lớn write → hot partition; đề hỏi cách phân tán write load
@@ -1175,6 +1223,17 @@ MỤC LỤC NHANH
   Lỗi hay nhầm: Env var shared across all stages — CodePipeline không share env var giữa stage như vậy
   Lỗi hay nhầm: SSM Parameter Store — có thể dùng thủ công nhưng đề hỏi cách CodePipeline pass data giữa stages → artifacts S3
 
+[Câu] SAM gradual deploy + test traffic nhỏ trước full deploy (chọn 2)
+  Yêu cầu đề: Microservices nhiều Lambda; dùng SAM template test tự động; % traffic nhỏ vào version mới trước khi commit full deploy
+  Yêu cầu đề: Most operationally efficient — chọn 2 bước
+  Đáp án (2): Enable gradual deployments trong SAM template; DeploymentPreference Canary10Percent30Minutes + Hooks test
+  Tip: SAM DeploymentPreference tích hợp CodeDeploy — shift traffic qua alias, không cần pipeline custom
+  Tip: Hooks (PreTraffic/PostTraffic) = Lambda chạy automated test trong lúc deploy
+  Tip: Canary10Percent30Minutes = 10% traffic mới giữ 30 phút rồi shift 100% — khớp test nhỏ trước full
+  Lỗi hay nhầm: EventInvokeConfig OnSuccess/OnFailure — Destinations async invoke, không liên quan deploy/canary
+  Lỗi hay nhầm: SAM CLI invoke qua CodeDeploy — không phải pattern test deploy
+  Lỗi hay nhầm: Linear10PercentEvery10Minutes khi đề nhấn giữ % nhỏ test trước — Linear tăng dần liên tục
+
 --------------------------------------------------------------------------------
 17. CLOUDFORMATION
 --------------------------------------------------------------------------------
@@ -1239,6 +1298,15 @@ MỤC LỤC NHANH
   Lỗi hay nhầm: Chờ developer confirm rollback thủ công — rollback mặc định tự chạy
   Đáp án (rollback fail): ContinueUpdateRollback hoặc skip resource lỗi
   Tip: Production nên rollback on failure
+
+[Câu] Giữ resource khi create/update stack fail — AWS CLI (chọn 1)
+  Yêu cầu đề: Provision stack bằng CloudFormation CLI; nếu lỗi giữa chừng thì resource đã tạo thành công phải được giữ lại (debug)
+  Yêu cầu đề: Dùng create-stack và update-stack qua AWS CLI
+  Đáp án: --disable-rollback trên create-stack và update-stack
+  Tip: Mặc định CFN rollback khi fail → xóa/revert resource vừa tạo; disable-rollback → stack ở CREATE_FAILED/UPDATE_FAILED nhưng resource còn
+  Tip: --enable-termination-protection chỉ chặn xóa cả stack — không liên quan rollback khi provision fail
+  Lỗi hay nhầm: Chọn termination-protection thay disable-rollback
+  Lỗi hay nhầm: Parameter/tag PreserveResources — không phải flag CLI thật của CloudFormation
 
 --------------------------------------------------------------------------------
 18. STEP FUNCTIONS / CLOUDTRAIL
@@ -1374,6 +1442,13 @@ DynamoDB Stream view: KEYS_ONLY vs NEW_IMAGE vs OLD_IMAGE vs NEW_AND_OLD_IMAGES
 29. DynamoDB Stream view type — KEYS_ONLY chỉ PK/SK; cần old + new image → NEW_AND_OLD_IMAGES
 30. GSI query — eventually consistent only; throughput riêng; strong read chỉ base table / LSI
 31. DynamoDB TTL — expiresAt qua rồi item vẫn có thể tồn tại tới 48h; không xóa instant; không ẩn khỏi GetItem
+32. DynamoDB insert throttle — tăng RCU (SAI); insert cần WCU; đúng: exponential backoff + On-Demand (hoặc tăng WCU nếu đề ghi đúng loại)
+33. CloudFormation giữ resource khi fail — termination-protection (SAI); đúng --disable-rollback trên create-stack/update-stack
+34. Lambda traffic shifting in-house — CodeDeploy canary/linear (SAI); đúng weighted alias (AdditionalVersionWeights)
+35. SAM gradual deploy — EventInvokeConfig OnSuccess/OnFailure (SAI); đúng DeploymentPreference + Canary10Percent30Minutes + Hooks
+36. API GW troubleshoot 400 — CloudTrail Insights (SAI); đúng execution + access logging → CloudWatch Logs trên stage
+37. Lambda Aurora connection string — IAM DB auth (SAI); đúng Parameter Store SecureString (single encrypted config)
+38. CloudFront resize ảnh — chỉ max TTL (SAI); đúng Lambda@Edge on-demand + lưu variant S3; tránh Batch pre-gen all variants
 
 ================================================================================
   END OF FILE

@@ -299,7 +299,7 @@
   <h1>AWS <span>DVA-C02</span> — Ghi chú ôn thi</h1>
   <p>Tổng hợp câu hỏi, đáp án và tip nhớ theo service</p>
   <div class="meta">
-    <span>Cập nhật: 2026-06-18</span>
+    <span>Cập nhật: 2026-06-21</span>
     <span>Có sơ đồ Mermaid</span>
     <span>Skill: dva-exam-notes</span>
     <span>dva-notes.txt</span>
@@ -336,7 +336,7 @@
 <main>
 
   <div id="api-gateway" class="tab-panel active" role="tabpanel">
-    <div class="panel-header"><h2>API Gateway</h2><span class="badge">9 câu</span></div>
+    <div class="panel-header"><h2>API Gateway</h2><span class="badge">10 câu</span></div>
     <div class="card">
       <div class="q">API versioning (v1/v2/test)</div>
       <div class="req">
@@ -539,10 +539,42 @@
         <span class="tip">Mapping template = transform data; Resource policy = ai invoke được API</span>
       </div>
     </div>
+
+    <div class="card">
+      <div class="q">Troubleshoot HTTP 400 — execution + access logging</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Client nhận <strong>HTTP 400</strong> khi gọi API Gateway endpoint</li>
+          <li>Developer cần <em>xác định nguyên nhân</em> lỗi (validation, malformed request…)</li>
+          <li>Bẫy: CloudTrail / CloudTrail Insights — log <em>management API</em>, không log HTTP request client</li>
+          <li>Bẫy: Firehose destination; chỉ X-Ray thay vì CloudWatch Logs</li>
+        </ul>
+      </div>
+      <div class="a">Bật <strong>execution logging</strong> + <strong>access logging</strong> trên stage → CloudWatch Logs (log group ARN gán cho stage)</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Log nào cho troubleshoot 400?</div>
+        <pre class="mermaid">flowchart TD
+  C[Client request] --> GW[API Gateway stage]
+  GW -->|400 validation / bad request| R400[400 response]
+  GW --> AL[Access log — status path IP latency]
+  GW --> EL[Execution log — integration request/response chi tiết]
+  AL --> CW[(CloudWatch Logs)]
+  EL --> CW
+  CT[CloudTrail Insights] -.->|management API only| MGMT[CreateApi UpdateStage]
+  CT -.x|KHÔNG| R400</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">400 thường từ Request Validator hoặc client gửi sai — execution log thấy lỗi integration/validation</span>
+        <span class="tip">Access log: $context.status, $context.error.message — tổng quan mọi request</span>
+        <span class="tip">Execution logging cần IAM role trust apigateway.amazonaws.com (cùng note method-level logging)</span>
+        <span class="tip">X-Ray = distributed tracing latency; bổ sung được nhưng đề hỏi determine cause 400 → CloudWatch logs trước</span>
+      </div>
+    </div>
   </div>
 
   <div id="lambda" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>Lambda</h2><span class="badge">8 câu</span></div>
+    <div class="panel-header"><h2>Lambda</h2><span class="badge">9 câu</span></div>
     <div class="card">
       <div class="q">Node.js + dependencies (pg/RDS)</div>
       <div class="a">Zip chung code + node_modules trong 1 file</div>
@@ -731,6 +763,35 @@
         <span class="tip">Execution role = quyền Lambda gọi ra (S3, DynamoDB…); không phải ai được gọi Lambda</span>
         <span class="tip">Add trigger qua Lambda Console thường tự thêm policy; rule tạo thủ công dễ thiếu</span>
         <span class="tip">Cùng region thường bắt buộc nhưng đề hỏi permission trước khi rule đã enabled</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="q">Traffic shifting — in-house deploy + weighted alias</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Lambda fleet có <strong>alias</strong> (vd <code>prod</code>); deploy bằng <em>in-house solution</em></li>
+          <li>Version mới ban đầu chỉ nhận <strong>fixed %</strong> traffic production</li>
+          <li>Bẫy: CodeDeploy <em>canary</em> / <em>linear</em> — deployment config của CodeDeploy, không phải in-house</li>
+          <li>Bẫy: environment variables — không route traffic giữa versions</li>
+        </ul>
+      </div>
+      <div class="a">Weighted alias — <code>update-alias</code> với <code>RoutingConfig.AdditionalVersionWeights</code></div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Weighted alias vs CodeDeploy</div>
+        <pre class="mermaid">flowchart TD
+  PUB[Publish version mới v2] --> UPD[Update alias prod]
+  UPD --> W[RoutingConfig: v1 90% + v2 10%]
+  W --> INV[Invoker gọi alias prod]
+  INV -->|90%| V1[v1]
+  INV -->|10%| V2[v2]
+  CD[CodeDeploy canary/linear] -.->|cần CodeDeploy| X[Không khớp in-house deploy]</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">Weighted alias = tính năng native Lambda — API/CLI/IaC update alias, không cần CodeDeploy</span>
+        <span class="tip">Canary/Linear = CodeDeploy tự shift traffic theo schedule — đề có in-house → chọn alias weight</span>
+        <span class="tip">Alias trỏ version cố định; weight thêm version phụ — API GW/EventBridge invoke qua alias</span>
       </div>
     </div>
   </div>
@@ -1091,7 +1152,7 @@
   </div>
 
   <div id="cloudfront" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>CloudFront</h2><span class="badge">5 câu</span></div>
+    <div class="panel-header"><h2>CloudFront</h2><span class="badge">6 câu</span></div>
     <div class="card">
       <div class="q">Route S3 theo country (cache miss)</div>
       <div class="a">Lambda@Edge + origin request</div>
@@ -1189,6 +1250,39 @@
   CF -->|/api/* dynamic| ALB[ALB app]</pre>
       </div>
       <div class="tips"><span class="tip">GA = network accelerator TCP/UDP; CF = CDN HTTP cache + multi-origin</span></div>
+    </div>
+
+    <div class="card">
+      <div class="q">Photo app — resize theo GET params, cost-effective</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Ảnh gốc <strong>S3</strong>; phân phối qua <strong>CloudFront</strong></li>
+          <li>App gửi <em>dimension/resolution</em> qua <strong>GET query parameters</strong></li>
+          <li>Hàng trăm kích thước màn hình khác nhau — cần optimize ảnh theo thiết bị</li>
+          <li>Đề nhấn <strong>MOST cost-effective</strong></li>
+          <li>Bẫy: chỉ tăng TTL; S3 Batch pre-gen mọi variant; route bằng headers</li>
+        </ul>
+      </div>
+      <div class="a">Lambda@Edge resize <strong>on-demand</strong> → trả ảnh cho client + <strong>lưu bản processed lên S3</strong> cho request sau</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — On-demand resize + cache S3</div>
+        <pre class="mermaid">flowchart TD
+  APP[Mobile app GET ?w=1080&amp;h=1920] --> CF[CloudFront]
+  CF -->|cache miss| LE[Lambda@Edge]
+  LE -->|variant chưa có| S3O[(S3 original)]
+  LE --> PROC[Resize optimize]
+  PROC --> RESP[Trả ảnh cho user]
+  PROC --> S3V[(S3 processed variant)]
+  CF -->|request sau| S3V
+  BATCH[S3 Batch pre-gen all sizes] -.->|hàng trăm combo × mọi ảnh| EXPENSIVE[Compute + storage khổng lồ]</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">Lazy generation: chỉ tạo variant khi thiết bị thực sự request — tiết kiệm vs pre-gen tất cả</span>
+        <span class="tip">Lưu S3 = lần sau CloudFront/origin phục vụ trực tiếp, không chạy lại Lambda@Edge</span>
+        <span class="tip">Chỉ max TTL không đủ — cache expire vẫn phải resize lại nếu không persist S3</span>
+        <span class="tip">GET params → origin-request Lambda@Edge đọc query string; không route bằng headers (D sai)</span>
+      </div>
     </div>
   </div>
 
@@ -1966,7 +2060,7 @@
   </div>
 
   <div id="rds" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>RDS</h2><span class="badge">3 câu</span></div>
+    <div class="panel-header"><h2>RDS</h2><span class="badge">5 câu</span></div>
     <div class="card">
       <div class="q">Multi-AZ (chọn 2)</div>
       <div class="req">
@@ -2018,10 +2112,45 @@
       <div class="q">DR PostgreSQL (chọn 2)</div>
       <div class="a">Cross-Region Read Replica + Multi-AZ + backup (same region)</div>
     </div>
+
+    <div class="card">
+      <div class="q">Lambda fleet — single encrypted Aurora connection string</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Nhiều Lambda (SNS trigger) ghi <strong>Aurora</strong></li>
+          <li>Policy: tất cả Lambda dùng <em>một connection string mã hóa chung</em></li>
+          <li>Bẫy: <strong>IAM database authentication</strong> — auth bằng IAM token, không lưu connection string</li>
+          <li>Bẫy: env var KMS từng function — không central single source</li>
+          <li>Bẫy: lưu credential trong RDS — circular logic</li>
+        </ul>
+      </div>
+      <div class="a">SSM Parameter Store — <strong>SecureString</strong> (KMS encrypt); Lambda <code>GetParameter</code> + <code>WithDecryption</code></div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Shared connection string</div>
+        <pre class="mermaid">flowchart TD
+  SNS[SNS topic] --> L1[Lambda 1]
+  SNS --> L2[Lambda 2]
+  SNS --> L3[Lambda N]
+  PSSM[(Parameter Store SecureString /aurora/conn)]
+  L1 -->|GetParameter WithDecryption| PSSM
+  L2 --> PSSM
+  L3 --> PSSM
+  L1 --> AUR[(Aurora)]
+  L2 --> AUR
+  L3 --> AUR
+  IAM[IAM DB auth token] -.->|không phải stored connection string| X[Không khớp đề]</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">SecureString = 1 giá trị tập trung, KMS encrypt, IAM kiểm soát ai đọc được</span>
+        <span class="tip">Secrets Manager cũng được nếu có option + cần rotation; đề có Parameter Store → chọn B</span>
+        <span class="tip">IAM DB auth: generate_db_auth_token — không password trong connection string</span>
+      </div>
+    </div>
   </div>
 
   <div id="dynamodb" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>DynamoDB</h2><span class="badge">24 câu</span></div>
+    <div class="panel-header"><h2>DynamoDB</h2><span class="badge">25 câu</span></div>
     <div class="card" style="border-left: 4px solid #0073bb;">
       <div class="q">Luyện tập RCU / WCU (quiz tương tác)</div>
       <div class="a"><a href="quiz/index.html" style="color:#0073bb;font-weight:700;">Mở trang Practice Quiz →</a> · <a href="quiz/dynamodb-rcu-wcu.html" style="color:#0073bb;">RCU/WCU 22 câu</a> · 4 đáp án/câu + giải thích khi chọn</div>
@@ -2535,6 +2664,35 @@
       </div>
       <span class="tip">On-Demand: không plan capacity; Provisioned: rẻ hơn nếu traffic ổn định, dự đoán được</span>
       <span class="tip">Chỉ fix throttle tổng throughput — KHÔNG fix hot partition (skew key)</span>
+    </div>
+
+    <div class="card">
+      <div class="q">Insert provisioned — ProvisionedThroughputExceeded (chọn 2)</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>App <em>insert/put</em> vào DynamoDB <strong>provisioned</strong> → <code>ProvisionedThroughputExceededException</code></li>
+          <li>Đề có thể nhắc EC2 burstable nano — <strong>red herring</strong>; lỗi từ DynamoDB, không phải CPU EC2</li>
+          <li>Chọn 2: client-side retry vs thay đổi capacity mode</li>
+          <li>Bẫy: tăng <strong>RCU</strong> khi đề nói write; giảm retry delay; đổi EC2 lớn hơn</li>
+        </ul>
+      </div>
+      <div class="a">(1) Exponential backoff · (2) Chuyển On-Demand capacity mode</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Xử lý write throttle</div>
+        <pre class="mermaid">flowchart TD
+  APP[App insert / PutItem] --> DDB[(DynamoDB provisioned)]
+  DDB -->|vượt WCU| ERR[ProvisionedThroughputExceeded]
+  ERR --> B[Exponential backoff retry]
+  ERR --> D[Chuyển On-Demand - tự scale]
+  ERR -.->|SAI| RCU[Tăng RCU - chỉ cho read]
+  ERR -.->|SAI| EC2[EC2 instance lớn hơn]
+  ERR -.->|SAI| FAST[Giảm retry delay - gửi dày hơn]</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">Insert/PutItem = WCU; GetItem/Query read = RCU — đọc đúng loại capacity đề hỏi</span>
+        <span class="tip">AWS SDK mặc định exponential backoff khi throttle — đề hay hỏi implement thêm nếu app retry sai</span>
+      </div>
     </div>
 
     <div class="card">
@@ -3769,7 +3927,7 @@
   </div>
 
   <div id="cicd" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>CI/CD — CodePipeline / CodeBuild / CodeDeploy</h2><span class="badge">22 câu</span></div>
+    <div class="panel-header"><h2>CI/CD — CodePipeline / CodeBuild / CodeDeploy</h2><span class="badge">23 câu</span></div>
 
     <div class="card">
       <div class="q">3 dịch vụ CI/CD — vai trò &amp; file config</div>
@@ -4124,10 +4282,42 @@
       </div>
       <span class="tip">Build post_build ghi imagedefinitions.json vào artifacts; Deploy ECS đọc file đó. Đề hỏi "how data passed between stages" → luôn nghĩ input/output artifacts S3 trước.</span>
     </div>
+
+    <div class="card">
+      <div class="q">SAM gradual deploy — canary + hooks (chọn 2)</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Nhiều Lambda microservices; deploy/test bằng <strong>SAM template</strong></li>
+          <li>Chỉ % traffic nhỏ vào version mới <em>trước</em> khi full deploy</li>
+          <li>Chọn 2 bước <em>operationally efficient</em> nhất</li>
+          <li>Bẫy: <code>EventInvokeConfig</code> OnSuccess/OnFailure — async Destinations, không phải deploy test</li>
+          <li>Bẫy: SAM CLI invoke qua CodeDeploy; Linear khi đề cần giữ % nhỏ test trước</li>
+        </ul>
+      </div>
+      <div class="a">(1) Enable gradual deployments trong SAM · (2) <code>Canary10Percent30Minutes</code> + Hooks (PreTraffic/PostTraffic)</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — SAM DeploymentPreference + Hooks</div>
+        <pre class="mermaid">flowchart TD
+  SAM[SAM template DeploymentPreference] --> CD[CodeDeploy Lambda]
+  CD --> PUB[Publish version mới]
+  PUB --> CAN[10% traffic → version mới 30 phút]
+  CAN --> PRE[PreTraffic Hook — automated test]
+  PRE -->|pass| FULL[Shift 100% traffic]
+  PRE -->|fail| RB[Rollback alias]
+  CAN --> POST[PostTraffic Hook — verify]</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">SAM gradual deploy = khai báo trong template, sam deploy — không cần pipeline traffic shift thủ công</span>
+        <span class="tip">Hooks = Lambda chạy test tự động trong deployment window</span>
+        <span class="tip">Canary = giữ % nhỏ cố định trước full; Linear = tăng 10% mỗi 10 phút liên tục</span>
+        <span class="tip">EventInvokeConfig ≠ DeploymentPreference — đừng nhầm Destinations với deploy canary</span>
+      </div>
+    </div>
   </div>
 
   <div id="cloudformation" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>CloudFormation</h2><span class="badge">10 câu</span></div>
+    <div class="panel-header"><h2>CloudFormation</h2><span class="badge">11 câu</span></div>
 
     <div class="card">
       <div class="q">RDS endpoint trong Outputs</div>
@@ -4348,6 +4538,33 @@
   RC --> FIX[Fix template] --> RETRY[Update lại]</pre>
       </div>
       <span class="tip">ROLLBACK_IN_PROGRESS = bình thường, tự heal. UPDATE_ROLLBACK_FAILED = kẹt → ContinueUpdateRollback / skip resource.</span>
+    </div>
+
+    <div class="card">
+      <div class="q">Giữ resource khi create/update fail — CLI --disable-rollback</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Deploy stack bằng <code>create-stack</code> / <code>update-stack</code> (AWS CLI)</li>
+          <li>Nếu provision lỗi giữa chừng → <strong>giữ</strong> resource đã tạo thành công để debug</li>
+          <li>Bẫy: <code>--enable-termination-protection</code> — chỉ chặn xóa stack, không chặn rollback khi fail</li>
+          <li>Bẫy: parameter/tag <code>PreserveResources</code> — không phải flag CLI thật</li>
+        </ul>
+      </div>
+      <div class="a"><code>--disable-rollback</code> trên cả create-stack và update-stack</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Rollback mặc định vs disable-rollback</div>
+        <pre class="mermaid">flowchart TD
+  START[create-stack / update-stack] --> PROV[Provision resources]
+  PROV -->|resource N fail| FAIL[Stack fail]
+  FAIL -->|mặc định| RB[Rollback: xóa/revert resource đã tạo]
+  FAIL -->|disable-rollback| KEEP[CREATE_FAILED / UPDATE_FAILED — resource còn để debug]
+  TP[termination-protection] -.->|chỉ khi delete-stack| DEL[Chặn xóa cả stack]</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">disable-rollback = giữ partial success khi fail; termination-protection = không ai xóa stack bằng CFN</span>
+        <span class="tip">Production thường để rollback bật; disable-rollback dùng khi cần troubleshoot template/resource lỗi</span>
+      </div>
     </div>
   </div>
 
@@ -4757,7 +4974,7 @@
   </div>
 
   <div id="mistakes" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>Lỗi hay chọn nhầm</h2><span class="badge">38 mục</span></div>
+    <div class="panel-header"><h2>Lỗi hay chọn nhầm</h2><span class="badge">45 mục</span></div>
     <div class="mistakes">
       <span class="item">EventBridge không invoke Lambda — chọn execution role events:PutEvents (SAI); đúng là resource policy events.amazonaws.com invoke function</span>
       <span class="item">SQS partial batch fail — chọn batch size 1 hoặc FIFO (SAI); đúng ReportBatchItemFailures + batchItemFailures list</span>
@@ -4796,6 +5013,13 @@
       <span class="item">DynamoDB Stream view — KEYS_ONLY chỉ PK/SK; cần old + new image → NEW_AND_OLD_IMAGES</span>
       <span class="item">GSI query — chỉ eventually consistent + RCU/WCU riêng; không strong read, không dùng throughput base table</span>
       <span class="item">DynamoDB TTL — expiresAt qua rồi vẫn có thể tồn tại tới 48h; không xóa instant; vẫn đọc được GetItem/Query</span>
+      <span class="item">DynamoDB insert throttle — tăng RCU (SAI); insert cần WCU; đúng: exponential backoff + On-Demand</span>
+      <span class="item">CloudFormation giữ resource khi fail — termination-protection (SAI); đúng --disable-rollback create-stack/update-stack</span>
+      <span class="item">Lambda traffic shifting in-house — CodeDeploy canary/linear (SAI); đúng weighted alias AdditionalVersionWeights</span>
+      <span class="item">SAM gradual deploy — EventInvokeConfig OnSuccess/OnFailure (SAI); đúng DeploymentPreference + Canary10Percent30Minutes + Hooks</span>
+      <span class="item">API GW troubleshoot 400 — CloudTrail Insights (SAI); đúng execution + access logging CloudWatch Logs trên stage</span>
+      <span class="item">Lambda Aurora connection string — IAM DB auth (SAI); đúng Parameter Store SecureString single encrypted config</span>
+      <span class="item">CloudFront resize ảnh — chỉ max TTL (SAI); đúng Lambda@Edge on-demand + lưu variant S3; tránh Batch pre-gen</span>
     </div>
 
 </main>
