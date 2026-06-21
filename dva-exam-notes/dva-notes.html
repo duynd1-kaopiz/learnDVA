@@ -254,6 +254,28 @@
     .diagram-label::before { content: "📐 "; }
     .diagram .mermaid { display: flex; justify-content: center; }
     .diagram svg { max-width: 100%; height: auto; }
+    .code-example {
+      margin-top: .75rem;
+      padding: .85rem 1rem;
+      background: #1e293b;
+      border-radius: 10px;
+      overflow-x: auto;
+    }
+    .code-example-label {
+      font-size: .88rem;
+      font-weight: 800;
+      color: var(--accent2);
+      margin-bottom: .55rem;
+    }
+    .code-example-label::before { content: "💻 "; }
+    .code-example pre {
+      font-family: "SF Mono", "Fira Code", Consolas, monospace;
+      font-size: .82rem;
+      line-height: 1.5;
+      color: #e2e8f0;
+      white-space: pre;
+      margin: 0;
+    }
 
     .compare-grid {
       display: grid;
@@ -336,7 +358,7 @@
 <main>
 
   <div id="api-gateway" class="tab-panel active" role="tabpanel">
-    <div class="panel-header"><h2>API Gateway</h2><span class="badge">10 câu</span></div>
+    <div class="panel-header"><h2>API Gateway</h2><span class="badge">11 câu</span></div>
     <div class="card">
       <div class="q">API versioning (v1/v2/test)</div>
       <div class="req">
@@ -364,9 +386,31 @@
       </div>
     </div>
     <div class="card">
-      <div class="q">prod/test/dev → Lambda khác nhau</div>
-      <div class="a">Stage Variables + Lambda Aliases</div>
-      <span class="tip">ARN: ...function:MyFn:${stageVariables.lambdaAlias}</span>
+      <div class="q">PROD + DEV Lambda alias cùng lúc (stage variable)</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>1 API Gateway, Lambda có alias <em>PROD</em> và <em>DEV</em> trỏ version khác nhau</li>
+          <li>Cần 2 môi trường truy cập <em>đồng thời</em>, URL riêng biệt</li>
+          <li>Bẫy C: gọi nhầm <em>environment variable</em> — đó là config Lambda, không phải API GW</li>
+          <li>Bẫy A/B: Authorizer (auth) / Gateway Response (custom error) — không route alias</li>
+        </ul>
+      </div>
+      <div class="a">Stage Variables + Lambda Aliases (tạo stage PROD + DEV, mỗi stage trỏ alias riêng)</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Stage variable → Lambda alias</div>
+        <pre class="mermaid">flowchart LR
+  C[Client] -->|/prod/...| SP[Stage PROD]
+  C -->|/dev/...| SD[Stage DEV]
+  SP -->|lambdaAlias=PROD| LP[Lambda alias PROD]
+  SD -->|lambdaAlias=DEV| LD[Lambda alias DEV]
+  LP --> VP[Lambda version PROD]
+  LD --> VD[Lambda version DEV]</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">ARN: ...function:MyFn:${stageVariables.lambdaAlias}</span>
+        <span class="tip">Stage variable ≠ environment variable (Lambda)</span>
+      </div>
     </div>
     <div class="card">
       <div class="q">Method-level execution logging</div>
@@ -571,10 +615,43 @@
         <span class="tip">X-Ray = distributed tracing latency; bổ sung được nhưng đề hỏi determine cause 400 → CloudWatch logs trước</span>
       </div>
     </div>
+
+    <div class="card">
+      <div class="q">Q46 — Cognito Department; authorizer vẫn thấy Engineering</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>API GW + Cognito federated IdP; map attribute <code>Department</code> → custom <em>Lambda authorizer</em></li>
+          <li>Chỉ user <em>Sales</em> được truy cập; đổi IdP Engineering → Sales; login lại vẫn deny</li>
+          <li>Log/token vẫn <code>Department = Engineering</code></li>
+          <li>Bẫy: Cognito user pool authorization caching (không tồn tại); IAM role Department tag</li>
+        </ul>
+      </div>
+      <div class="a"><strong>Authorization caching</strong> bật trên Lambda authorizer (API Gateway)</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Authorizer cache</div>
+        <pre class="mermaid">sequenceDiagram
+  participant C as Client
+  participant G as API Gateway
+  participant A as Lambda Authorizer
+  C->>G: Request + JWT (Department=Engineering)
+  G->>A: Lần 1 — gọi authorizer
+  A-->>G: Deny — cache theo token key
+  Note over G: IdP đổi Sales — client vẫn gửi JWT cũ
+  C->>G: Request + cùng JWT cũ
+  G-->>G: Cache HIT — không gọi authorizer
+  G-->>C: Deny (vẫn Engineering)</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">Cache key = token (TOKEN authorizer) hoặc identity source (REQUEST); TTL 0–3600s</span>
+        <span class="tip">Fix: tắt cache / giảm TTL; sign-out + login lấy JWT mới sau khi IdP đổi attribute</span>
+        <span class="tip">Cognito không có "authorization caching"; IAM tag ≠ JWT claim</span>
+      </div>
+    </div>
   </div>
 
   <div id="lambda" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>Lambda</h2><span class="badge">9 câu</span></div>
+    <div class="panel-header"><h2>Lambda</h2><span class="badge">12 câu</span></div>
     <div class="card">
       <div class="q">Node.js + dependencies (pg/RDS)</div>
       <div class="a">Zip chung code + node_modules trong 1 file</div>
@@ -632,6 +709,32 @@
   API[API GW sync] -.->|KHÔNG dùng DLQ async| L</pre>
       </div>
       <span class="tip">Sync (API GW) không dùng DLQ async</span>
+    </div>
+    <div class="card">
+      <div class="q">Async fail random — capture event (SQS DLQ standard)</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Lambda invoke <em>async</em>; event fail ngẫu nhiên; cần investigate + lưu event không xử lý được</li>
+          <li>Đề hỏi cấu hình DLQ + execution role permissions</li>
+          <li>Bẫy C: <em>SQS FIFO</em> DLQ — Lambda <strong>không hỗ trợ</strong> FIFO queue làm DLQ</li>
+          <li>Bẫy A: Kinesis làm DLQ — không phải target hỗ trợ; D: EventBridge→DynamoDB — không pattern chuẩn</li>
+        </ul>
+      </div>
+      <div class="a">SQS <strong>standard</strong> dead-letter queue + execution role (<code>sqs:SendMessage</code>)</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Lambda DLQ targets</div>
+        <pre class="mermaid">flowchart TD
+  E[Async event] --> L[Lambda]
+  L -->|fail hết retry| DLQ[(SQS standard DLQ)]
+  L -.->|KHÔNG hỗ trợ| FIFO[SQS FIFO queue]
+  L -.->|KHÔNG hỗ trợ| KIN[Kinesis stream]
+  DLQ --> INV[Developer investigate / reprocess]</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">Lambda DLQ chỉ: SQS standard hoặc SNS topic</span>
+        <span class="tip">FIFO DLQ nghe hợp lý nhưng AWS không cho phép — chọn standard SQS</span>
+      </div>
     </div>
     <div class="card">
       <div class="q">Async fail — event gốc + error details + function response</div>
@@ -792,12 +895,66 @@
         <span class="tip">Weighted alias = tính năng native Lambda — API/CLI/IaC update alias, không cần CodeDeploy</span>
         <span class="tip">Canary/Linear = CodeDeploy tự shift traffic theo schedule — đề có in-house → chọn alias weight</span>
         <span class="tip">Alias trỏ version cố định; weight thêm version phụ — API GW/EventBridge invoke qua alias</span>
+        <span class="tip">LEAST effort + test subset user → weighted alias; không tạo REST API mới</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="q">Mobile app — test Lambda mới subset user (least effort)</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>REST API Gateway → Lambda; cần test feature mới với <em>một phần user</em></li>
+          <li>User còn lại không bị ảnh hưởng; đề nhấn <strong>LEAST operational effort</strong></li>
+          <li>Bẫy C: tạo <em>REST API mới</em> + API GW stage canary — effort cao, không cần thiết</li>
+          <li>Bẫy A: CodeDeploy canary — cần deployment group, AppSpec (effort &gt; alias weight)</li>
+        </ul>
+      </div>
+      <div class="a">Weighted alias — publish version mới + <code>AdditionalVersionWeights</code> (giữ nguyên API GW)</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Weighted alias qua API GW</div>
+        <pre class="mermaid">flowchart LR
+  U[Mobile users] --> GW[REST API cùng stage]
+  GW -->|invoke alias ARN| AL[Lambda alias prod]
+  AL -->|90%| V1[Version cũ]
+  AL -->|10%| V2[Version mới test]</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">API GW trỏ alias → chỉ update weight, không đổi API/deployment</span>
+        <span class="tip">API GW canary = shift giữa API deployments; Lambda weighted alias = shift giữa function versions</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="q">External API key — Lambda env var + CMK</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Lưu <em>external API key</em> như một phần <strong>Lambda configuration</strong></li>
+          <li><em>Full control</em> KMS key encrypt secret; chỉ authorized entities đọc được</li>
+          <li>Bẫy: Parameter Store + default AWS KMS (A); code repo / DynamoDB (B/C); AWS managed key</li>
+        </ul>
+      </div>
+      <div class="a">Lambda <strong>environment variables</strong> + <strong>KMS customer managed key</strong> (encrypt env vars at rest)</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Lambda env var encryption</div>
+        <pre class="mermaid">flowchart LR
+  DEV[Developer set env var API_KEY] --> L[Lambda configuration]
+  L -->|encrypt at rest| CMK[KMS Customer Managed Key]
+  RUN[Lambda invoke] -->|decrypt| CMK
+  RUN --> CODE[process.env.API_KEY]
+  IAM[IAM + KMS key policy] -.->|authorized only| CMK</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">"Lambda configuration" = env vars trong function config — không phải SSM/DynamoDB riêng</span>
+        <span class="tip">Full control KMS = CMK (tự key policy, rotation, grant); AWS managed/default key = AWS quản lý</span>
+        <span class="tip">Parameter Store SecureString + CMK có thể dùng thực tế nhưng đề A sai: string param + default key</span>
       </div>
     </div>
   </div>
 
   <div id="s3" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>S3</h2><span class="badge">20 câu</span></div>
+    <div class="panel-header"><h2>S3</h2><span class="badge">21 câu</span></div>
     <div class="card">
       <div class="q">Private bucket, truy cập tạm thời</div>
       <div class="req">
@@ -1148,6 +1305,35 @@
   EDGE --> S3[S3 bucket]</pre>
       </div>
       <div class="tips"><span class="tip">File GB + xa region → multipart VÀ Transfer Acceleration; TA ≠ CRR ≠ CloudFront cache</span></div>
+    </div>
+
+    <div class="card">
+      <div class="q">Q34 — S3 high request rates — prefix distribution</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Nhiều object trong <em>1 bucket</em>; cần <strong>high request rates</strong> (PUT/GET)</li>
+          <li>Đề hỏi: lưu object <em>thế nào</em> để tối ưu throughput</li>
+          <li>Bẫy: Intelligent-Tiering (storage cost); object tag "prefix"; tất cả ở root</li>
+        </ul>
+      </div>
+      <div class="a">Phân tán <strong>object key</strong> qua nhiều <strong>prefixes</strong> (vd <code>data/abc123/obj</code>, <code>data/def456/obj</code>)</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — S3 prefix scaling</div>
+        <pre class="mermaid">flowchart TB
+  subgraph BAD[Tất cả ở root — 1 prefix]
+    R[object1 object2 object3...] --> TH[Throttle ~3500 PUT/s]
+  end
+  subgraph GOOD[Phân tán prefixes]
+    P1[prefix-a/...] --> S1[~3500 PUT/s]
+    P2[prefix-b/...] --> S2[~3500 PUT/s]
+    P3[prefix-c/...] --> S3[~3500 PUT/s]
+  end</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">Prefix = phần path trong key (folder ảo), không phải object tag</span>
+        <span class="tip">~3500 PUT/s và ~5500 GET/s mỗi prefix — thêm prefix = thêm throughput</span>
+      </div>
     </div>
   </div>
 
@@ -1672,6 +1858,7 @@
         <ul>
           <li>Zero downtime + <em>không giảm capacity</em> trong lúc deploy</li>
           <li>Chấp nhận <em>tạm thêm instance</em> (chi phí tăng ngắn hạn)</li>
+          <li>Q12: thêm yêu cầu <em>minimize cost</em> resource phụ → chọn policy này thay Blue/Green / Immutable</li>
         </ul>
       </div>
       <div class="a">Launch batch EC2 mới trước → chuyển traffic → terminate batch cũ</div>
@@ -1684,6 +1871,7 @@
   FULL[Full capacity suốt deploy] -.-> NEW</pre>
       </div>
       <span class="tip">Khác Rolling thường: Rolling giảm capacity; additional batch giữ nguyên</span>
+      <span class="tip">Minimize cost + full capacity: chỉ thêm 1 batch tạm — rẻ hơn Immutable (duplicate cả fleet) và Blue/Green (2 env full)</span>
     </div>
 
     <div class="card">
@@ -1826,6 +2014,7 @@
       </div>
       <div class="tips">
         <span class="tip">Giảm capacity OK → Rolling; không OK → Rolling additional batch hoặc Immutable</span>
+        <span class="tip">Giữ capacity + minimize cost → Rolling additional batch; Blue/Green = 2 env (tốn nhất); Immutable = duplicate cả fleet</span>
         <span class="tip">Rollback tức thì DNS → Blue/Green; rollback terminate fleet → Immutable</span>
       </div>
     </div>
@@ -3536,7 +3725,7 @@
   </div>
 
   <div id="iam" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>IAM / Security</h2><span class="badge">16 câu</span></div>
+    <div class="panel-header"><h2>IAM / Security</h2><span class="badge">17 câu</span></div>
     <div class="card">
       <div class="q">EC2 chat API token — cross-account + resource policy</div>
       <div class="req">
@@ -3560,6 +3749,39 @@
   DDB[DynamoDB] -.->|không resource policy| Z[Sai]</pre>
       </div>
       <span class="tip">Đề có "resource-based policy" + cross-account secret/token → Secrets Manager; Parameter Store chỉ IAM identity policy</span>
+    </div>
+
+    <div class="card">
+      <div class="q">Q54 — Lambda shared account → EC2 dev accounts (AssumeRole)</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Lambda ở <em>shared account</em>; cần <code>ec2:DescribeInstances</code> trên EC2 ở <em>development accounts</em></li>
+          <li>Least privilege — cross-account IAM đúng pattern</li>
+          <li>Bẫy: role + EC2 permission ở shared account (C/A); gắn ec2:DescribeInstances lên Lambda role thay AssumeRole (D)</li>
+        </ul>
+      </div>
+      <div class="a">Role ở <strong>dev accounts</strong> (ec2:DescribeInstances) + trust shared account; Lambda execution role chỉ <code>sts:AssumeRole</code></div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Cross-account Lambda → EC2</div>
+        <pre class="mermaid">flowchart LR
+  subgraph SHARED[Shared Account]
+    L[Lambda]
+    LR[Lambda execution role]
+    L --> LR
+  end
+  subgraph DEV[Dev Account]
+    R[Cross-account role]
+    EC2[EC2 instances]
+    R -->|ec2:DescribeInstances| EC2
+  end
+  LR -->|sts:AssumeRole| R
+  R -.->|trust policy allows shared account| LR</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">Quyền resource = role account ĐÍCH; role nguồn chỉ AssumeRole — giống pattern Lambda → DynamoDB cross-account</span>
+        <span class="tip">Trust policy gắn role ĐÍCH, trust principal = shared account Lambda role</span>
+      </div>
     </div>
 
     <div class="card">
@@ -4317,7 +4539,7 @@
   </div>
 
   <div id="cloudformation" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>CloudFormation</h2><span class="badge">11 câu</span></div>
+    <div class="panel-header"><h2>CloudFormation</h2><span class="badge">16 câu</span></div>
 
     <div class="card">
       <div class="q">RDS endpoint trong Outputs</div>
@@ -4564,6 +4786,161 @@
       <div class="tips">
         <span class="tip">disable-rollback = giữ partial success khi fail; termination-protection = không ai xóa stack bằng CFN</span>
         <span class="tip">Production thường để rollback bật; disable-rollback dùng khi cần troubleshoot template/resource lỗi</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="q">CFN Lambda — code đã có trên S3 (S3Bucket + S3Key)</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Lambda deployment package + dependencies <em>đã lưu S3</em>; deploy bằng <code>AWS::Lambda::Function</code></li>
+          <li>Đề nhấn <strong>LEAST development effort</strong> — trỏ tới package có sẵn, không copy code vào template</li>
+          <li>Bẫy A/B: inline <code>Code</code> / <code>ZipFile</code> — nhúng code trong template, không dùng S3</li>
+          <li>Bẫy C: S3 key gán vào <code>ZipFile</code> — ZipFile là zip base64 inline, không phải tham chiếu S3</li>
+        </ul>
+      </div>
+      <div class="a"><code>Code.S3Bucket</code> + <code>Code.S3Key</code> trong AWS::Lambda::Function</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — 3 cách khai báo Code</div>
+        <pre class="mermaid">flowchart TD
+  S3[Package zip trên S3] -->|S3Bucket + S3Key| OK[Đáp án D — ít effort]
+  SMALL[Script nhỏ] -->|Inline Code| INLINE[Node/Python trong template]
+  TINY[Zip nhỏ embed] -->|ZipFile base64| ZIP[Trong template — không trỏ S3]
+  S3 -.->|KHÔNG dùng ZipFile| X[S3 key ≠ ZipFile]</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">Code đã trên S3 → S3Bucket + S3Key; không paste zip vào template</span>
+        <span class="tip">ZipFile = nội dung zip inline; S3Key = đường dẫn object trên S3 — khác nhau</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="q">CFN Lambda Code — Inline, ZipFile, S3 (3 cách + ví dụ)</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề / kiến thức nền</div>
+        <ul>
+          <li>Phân biệt 3 cách khai báo <code>Code</code> trong <code>AWS::Lambda::Function</code></li>
+          <li><strong>ZipFile (Node/Python)</strong> = paste <em>source code text</em> — CFN tự tạo index.js/index.py</li>
+          <li><strong>ZipFile (Java/.NET/Go)</strong> = base64 zip trong template — thực tế dùng S3</li>
+          <li><strong>S3Bucket + S3Key</strong> = trỏ package zip có sẵn (dependencies, node_modules…)</li>
+        </ul>
+      </div>
+      <div class="a">Chọn theo tình huống: script nhỏ → ZipFile · package S3 → S3Bucket+S3Key</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Chọn cách khai báo Code</div>
+        <pre class="mermaid">flowchart TD
+  Q{Có gì sẵn?}
+  Q -->|Script nhỏ Node/Python, không lib| ZP[ZipFile = source text]
+  Q -->|Package zip + dependencies trên S3| S3[S3Bucket + S3Key]
+  Q -->|Java/Go/.NET jar zip| S3B[Luôn dùng S3]
+  ZP --> H[Handler: index.handler]</pre>
+      </div>
+      <div class="code-example">
+        <div class="code-example-label">ZipFile — Node.js (inline source)</div>
+        <pre>Code:
+  ZipFile: |
+    exports.handler = async (event) => {
+      return { statusCode: 200, body: JSON.stringify({ msg: 'Hello' }) };
+    };
+# Runtime: nodejs20.x · Handler: index.handler</pre>
+      </div>
+      <div class="code-example">
+        <div class="code-example-label">ZipFile — Python (inline source)</div>
+        <pre>Code:
+  ZipFile: |
+    import json
+    def handler(event, context):
+        return {'statusCode': 200, 'body': json.dumps({'msg': 'Hello'})}
+# Runtime: python3.12 · Handler: index.handler</pre>
+      </div>
+      <div class="code-example">
+        <div class="code-example-label">S3Bucket + S3Key — package production</div>
+        <pre>Code:
+  S3Bucket: my-deploy-bucket
+  S3Key: lambda/my-app-v1.2.3.zip
+  # S3ObjectVersion: abc123  # optional — pin version</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">ZipFile tên gây hiểu nhầm — Node/Python là source text, không phải file .zip</span>
+        <span class="tip">Inline/ZipFile không có node_modules — package lớn → S3</span>
+        <span class="tip">S3Key ≠ ZipFile — hai property khác nhau, không thay thế được</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="q">CFN — Log Group name/ARN cho Lambda runtime</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Lambda serverless deploy bằng CloudFormation; template đã khai báo <code>AWS::Logs::LogGroup</code></li>
+          <li>App cần <em>biết tên hoặc ARN</em> log group khi Lambda chạy (runtime)</li>
+          <li>Bẫy: <code>AWS::Include</code> transform — modularize template, không phải truyền config cho app</li>
+          <li>Bẫy: <code>Mappings</code> (static), <code>UserData</code> (chỉ EC2)</li>
+        </ul>
+      </div>
+      <div class="a">Truyền ARN/tên Log Group qua <strong>Environment Variables</strong> của Lambda (<code>!Ref</code> / <code>!GetAtt</code>)</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — CFN → Lambda runtime</div>
+        <pre class="mermaid">flowchart LR
+  LG[AWS::Logs::LogGroup] -->|!Ref = name / !GetAtt.Arn| ENV[Lambda Environment Variables]
+  ENV -->|process.env| CODE[Lambda handler runtime]</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">"available at runtime" + Lambda → Environment Variables là pattern exam</span>
+        <span class="tip">AWS::Include = include template snippet từ S3 lúc transform — không inject giá trị resource cho code</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="q">Q36 — CFN pre-prod deploy → notify QA</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Mỗi environment = <em>1 CloudFormation stack</em>, deploy cùng template</li>
+          <li>QA cần notification khi có <em>deployment mới</em> ở pre-production</li>
+          <li>Chỉ pre-prod — không notify dev/staging/prod</li>
+          <li>Bẫy: SNS + "stack options"; Lambda event source mapping CFN; CloudWatch alarm stack status</li>
+        </ul>
+      </div>
+      <div class="a">Lambda notify QA + <strong>EventBridge rule</strong> trên default bus — filter <code>aws.cloudformation</code> + <strong>stack ARN</strong> pre-prod</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — CFN event → QA</div>
+        <pre class="mermaid">flowchart LR
+  ST[CFN stack pre-prod UPDATE_COMPLETE] --> EB[EventBridge default bus]
+  EB -->|filter source + stack ARN| RULE[EventBridge Rule]
+  RULE --> L[Lambda notify QA]
+  L --> QA[Email / Slack / SNS…]</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">CFN stack status changes tự emit EventBridge — không cần poll</span>
+        <span class="tip">Filter stack ARN = chỉ 1 environment; cùng template nhiều stack vẫn tách được</span>
+        <span class="tip">Event source mapping ≠ CloudFormation (chỉ SQS/Kinesis/DDB Streams/Kafka/MQ)</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="q">Q22 — CFN reference SSM Parameter Store (plaintext hostname)</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>RDS hostname lưu trong <em>SSM Parameter Store</em> — loại <strong>plaintext</strong> (String)</li>
+          <li>CloudFormation template cần lấy giá trị đó khi <em>stack create</em> để init app</li>
+          <li>Bẫy: <code>ssm-secure</code> (chỉ SecureString); <code>!Ref</code>; <code>!ImportValue</code></li>
+        </ul>
+      </div>
+      <div class="a"><code>{{resolve:ssm:parameter-name}}</code> — SSM dynamic reference</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — CFN dynamic reference SSM</div>
+        <pre class="mermaid">flowchart LR
+  SSM[(SSM Parameter Store String plaintext)]
+  CFN[CloudFormation template]
+  SSM -->|"{{resolve:ssm:/app/rds/host}}"| CFN
+  CFN --> APP[App config DB hostname]</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">String / StringList → resolve:ssm | SecureString → resolve:ssm-secure</span>
+        <span class="tip">!Ref = resource/param trong template; !ImportValue = Export từ stack khác</span>
       </div>
     </div>
   </div>
@@ -4974,7 +5351,7 @@
   </div>
 
   <div id="mistakes" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>Lỗi hay chọn nhầm</h2><span class="badge">45 mục</span></div>
+    <div class="panel-header"><h2>Lỗi hay chọn nhầm</h2><span class="badge">55 mục</span></div>
     <div class="mistakes">
       <span class="item">EventBridge không invoke Lambda — chọn execution role events:PutEvents (SAI); đúng là resource policy events.amazonaws.com invoke function</span>
       <span class="item">SQS partial batch fail — chọn batch size 1 hoặc FIFO (SAI); đúng ReportBatchItemFailures + batchItemFailures list</span>
@@ -5014,12 +5391,22 @@
       <span class="item">GSI query — chỉ eventually consistent + RCU/WCU riêng; không strong read, không dùng throughput base table</span>
       <span class="item">DynamoDB TTL — expiresAt qua rồi vẫn có thể tồn tại tới 48h; không xóa instant; vẫn đọc được GetItem/Query</span>
       <span class="item">DynamoDB insert throttle — tăng RCU (SAI); insert cần WCU; đúng: exponential backoff + On-Demand</span>
+      <span class="item">S3 high request rate — object tag prefix (SAI); đúng phân tán object key qua nhiều prefixes</span>
+      <span class="item">CFN SSM plaintext hostname — chọn ssm-secure (SAI); đúng {{resolve:ssm:...}} dynamic reference</span>
+      <span class="item">External API key Lambda — Parameter Store default KMS (SAI); đúng env var + KMS customer managed key</span>
+      <span class="item">Lambda shared account EC2 dev — role + ec2:DescribeInstances ở shared account (SAI); đúng role dev + Lambda role AssumeRole</span>
+      <span class="item">Cognito Department đổi IdP vẫn Engineering — chọn Cognito authorization caching (SAI); đúng API GW Lambda authorizer authorization caching</span>
+      <span class="item">CFN notify QA pre-prod deploy — chọn SNS stack options (SAI); đúng EventBridge rule filter aws.cloudformation + stack ARN → Lambda</span>
+      <span class="item">EB deploy giữ capacity + minimize cost — chọn Blue/Green (SAI); đúng Rolling with additional batch (chỉ thêm 1 batch tạm)</span>
       <span class="item">CloudFormation giữ resource khi fail — termination-protection (SAI); đúng --disable-rollback create-stack/update-stack</span>
       <span class="item">Lambda traffic shifting in-house — CodeDeploy canary/linear (SAI); đúng weighted alias AdditionalVersionWeights</span>
       <span class="item">SAM gradual deploy — EventInvokeConfig OnSuccess/OnFailure (SAI); đúng DeploymentPreference + Canary10Percent30Minutes + Hooks</span>
       <span class="item">API GW troubleshoot 400 — CloudTrail Insights (SAI); đúng execution + access logging CloudWatch Logs trên stage</span>
       <span class="item">Lambda Aurora connection string — IAM DB auth (SAI); đúng Parameter Store SecureString single encrypted config</span>
       <span class="item">CloudFront resize ảnh — chỉ max TTL (SAI); đúng Lambda@Edge on-demand + lưu variant S3; tránh Batch pre-gen</span>
+      <span class="item">API GW PROD/DEV Lambda alias — chọn "environment variable" (C); đúng stage variable + 2 stage (D)</span>
+      <span class="item">Lambda subset user test — tạo REST API mới + API GW canary (C); đúng weighted alias (D, least effort)</span>
+      <span class="item">Lambda async DLQ — chọn SQS FIFO DLQ (C); đúng SQS standard DLQ (B) — Lambda không hỗ trợ FIFO làm DLQ</span>
     </div>
 
 </main>

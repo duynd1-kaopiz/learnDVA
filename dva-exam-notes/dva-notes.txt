@@ -37,9 +37,14 @@ MỤC LỤC NHANH
   Tip: Authorizer = auth; Resource Policy = access control — KHÔNG dùng versioning
   Tip: Mỗi stage có URL riêng; stage var trỏ Lambda alias
 
-[Câu] prod/test/dev → Lambda khác nhau
-  Đáp án: Stage Variables + Lambda Aliases
-  Tip: ARN: ...function:MyFn:${stageVariables.lambdaAlias}
+[Câu] prod/test/dev → Lambda khác nhau (PROD + DEV alias cùng lúc)
+  Yêu cầu đề: 1 API Gateway, Lambda có alias PROD/DEV; cần 2 môi trường truy cập đồng thời, URL riêng
+  Yêu cầu đề: Tạo stage PROD + stage DEV; mỗi stage có stage variable trỏ alias tương ứng
+  Đáp án: Stage Variables + Lambda Aliases (D)
+  Tip: ARN integration: ...function:MyFn:${stageVariables.lambdaAlias}
+  Tip: "Environment variable" = Lambda config — KHÔNG phải tính năng API Gateway (bẫy C)
+  Tip: Lambda Authorizer = auth; Gateway Response = custom error body — không route alias
+  Lỗi hay nhầm: C — nhầm environment variable (Lambda) với stage variable (API GW)
 
 [Câu] Method-level execution logging
   Đáp án: IAM role (trust apigateway.amazonaws.com) + STS enabled ở region
@@ -98,6 +103,15 @@ MỤC LỤC NHANH
   Lỗi hay nhầm: Firehose làm destination log API GW — chuẩn là CloudWatch Logs trực tiếp
   Lỗi hay nhầm: Chỉ X-Ray — tracing latency/service map; 400 validation thường thấy rõ hơn trong execution/access logs
 
+[Câu] Q46 — Cognito Department + Lambda authorizer vẫn thấy Engineering
+  Yêu cầu đề: API GW + Cognito federated IdP; attribute Department map sang Lambda authorizer; chỉ Sales được vào
+  Yêu cầu đề: Đổi Department Engineering → Sales trên IdP; login lại vẫn deny; log/token vẫn Department=Engineering
+  Đáp án: Authorization caching bật trên custom Lambda authorizer (API Gateway)
+  Tip: API GW cache kết quả authorizer theo token/identity key (TTL 0–3600s); cùng token cũ → không gọi lại Lambda, vẫn deny cũ
+  Tip: Token JWT giữ claim cũ đến khi hết hạn / re-auth hoàn toàn; cache authorizer làm “kẹt” quyết định cũ
+  Lỗi hay nhầm: Authorization caching trên Cognito user pool — Cognito không có feature này
+  Lỗi hay nhầm: IAM role Department tag — tag IAM không liên quan claim token/attribute IdP
+
 --------------------------------------------------------------------------------
 2. LAMBDA
 --------------------------------------------------------------------------------
@@ -116,6 +130,14 @@ MỤC LỤC NHANH
 [Câu] DLQ khi nào nhận message?
   Đáp án: Async invocation + fail HẾT mọi retry
   Tip: Sync (API GW) không dùng DLQ async; fail 1 lần rồi OK → không vào DLQ
+
+[Câu] Async Lambda fail ngẫu nhiên — capture event fail (SQS DLQ)
+  Yêu cầu đề: Lambda invoke async; một số event fail random; cần investigate + lưu event không xử lý được
+  Yêu cầu đề: Cấu hình DLQ + execution role có quyền gửi message vào queue
+  Đáp án: SQS standard dead-letter queue + update execution role (B)
+  Tip: Lambda DLQ chỉ hỗ trợ SQS standard hoặc SNS — KHÔNG hỗ trợ FIFO queue
+  Tip: Kinesis không phải DLQ target của Lambda; EventBridge→DynamoDB không phải pattern chuẩn capture fail
+  Lỗi hay nhầm: C — SQS FIFO DLQ (Lambda không hỗ trợ FIFO làm DLQ)
 
 [Câu] Async Lambda fail — cần event gốc + error details + function response
   Yêu cầu đề: Lambda xử lý async event từ S3; invocation fail; cần capture event gốc, chi tiết lỗi và function response để debug
@@ -165,6 +187,24 @@ MỤC LỤC NHANH
   Tip: Canary/Linear deployment type = AWS CodeDeploy — không khớp in-house deploy
   Lỗi hay nhầm: Chọn CodeDeploy canary/linear khi đề nói in-house deployment solution
   Lỗi hay nhầm: Environment variables — không route traffic giữa versions
+
+[Câu] Mobile app + API GW — test Lambda mới với subset user (LEAST effort)
+  Yêu cầu đề: REST API → Lambda; test feature mới với một phần user, không ảnh hưởng user còn lại
+  Yêu cầu đề: LEAST operational effort — giữ nguyên API Gateway, chỉ shift traffic ở Lambda
+  Đáp án: Weighted alias — publish version mới + AdditionalVersionWeights trên alias (D)
+  Tip: API GW integration trỏ alias ARN → chỉ update weight alias, không tạo REST API mới
+  Tip: API GW stage canary = shift giữa API deployments, không phải cách ít effort nhất cho Lambda version
+  Lỗi hay nhầm: C — tạo REST API mới + canary stage (overkill, effort cao)
+  Lỗi hay nhầm: A — CodeDeploy canary cần setup deployment group (effort > weighted alias)
+
+[Câu] External API key — Lambda config + full control KMS (CMK)
+  Yêu cầu đề: Serverless app; lưu external API key như một phần Lambda configuration
+  Yêu cầu đề: Full control KMS key encrypt API key; chỉ authorized entities thấy được
+  Đáp án: Lambda environment variables + KMS customer managed key (CMK) encrypt env vars at rest
+  Tip: "part of Lambda configuration" → Environment Variables; "full control KMS" → CMK không phải AWS managed/default
+  Tip: Lambda encrypt env vars at rest bằng CMK; IAM + KMS key policy kiểm soát ai decrypt
+  Lỗi hay nhầm: Parameter Store string + default AWS KMS key (A) — không phải Lambda config; default key = không full control
+  Lỗi hay nhầm: Code repo / DynamoDB + AWS managed key (B/C) — secret không thuộc Lambda config; managed key ≠ full control
 
 --------------------------------------------------------------------------------
 3. S3
@@ -274,6 +314,15 @@ MỤC LỤC NHANH
   Yêu cầu đề: Tự chuyển IA/Glacier sau N ngày; xóa sau retention
   Đáp án: S3 Lifecycle rules — Transition + Expiration
   Tip: Glacier restore tạo bản copy tạm; không transition ngược trực tiếp
+
+[Câu] Q34 — S3 high request rates — phân tán prefix
+  Yêu cầu đề: Nhiều object trong 1 bucket; cần optimize cho high request rates (PUT/GET)
+  Đáp án: Object key names phân tán qua nhiều prefixes (vd user/12345/file, user/67890/file)
+  Tip: S3 scale theo prefix trong key — mỗi prefix ~3500 PUT/s và ~5500 GET/s; root chung = bottleneck
+  Tip: Prefix = phần path trong object key (trước tên file), KHÔNG phải object tag
+  Lỗi hay nhầm: Object tag "prefix" — tag không ảnh hưởng request scaling
+  Lỗi hay nhầm: Intelligent-Tiering — storage class/cost, không tăng request throughput
+  Lỗi hay nhầm: Store ở root bucket — tất cả key cùng prefix rỗng → throttle
 
 --------------------------------------------------------------------------------
 4. CLOUDFRONT
@@ -430,8 +479,11 @@ MỤC LỤC NHANH
 
 [Câu] Rolling with additional batch
   Yêu cầu đề: Zero downtime + giữ full capacity; chấp nhận thêm instance tạm
+  Yêu cầu đề: Q12 — giữ full capacity + không downtime + minimize cost resource phụ thêm
   Đáp án: Launch batch mới trước → chuyển traffic → terminate batch cũ
   Tip: Khác Rolling thường — Rolling giảm capacity
+  Tip: Minimize cost + giữ capacity → Rolling additional batch (chỉ thêm 1 batch); không chọn Blue/Green (2 env full) hay Immutable (duplicate cả fleet)
+  Lỗi hay nhầm: Blue/Green — zero downtime OK nhưng tốn gấp đôi resource (2 environment song song)
 
 [Câu] Rolling deploy thất bại một phần — terminate instance failed
   Yêu cầu đề: Rolling deployment; chỉ vài batch thành công, batch còn lại fail; team terminate instance failed
@@ -474,6 +526,7 @@ MỤC LỤC NHANH
   Yêu cầu đề: Scenario → chọn đúng 1 policy
   Đáp án: Dev→All at once; giảm capacity OK→Rolling; giữ capacity→Rolling+additional/Immutable
   Tip: Canary ALB→Traffic splitting; instant DNS rollback→Blue/Green
+  Tip: Giữ capacity + minimize cost → Rolling additional batch (thêm 1 batch); Immutable/Blue/Green tốn hơn (duplicate fleet hoặc 2 env)
 
 [Câu] Deploy lần lượt nhóm EC2
   Yêu cầu đề: Chia nhóm deploy tuần tự; không nhầm Hooks
@@ -995,6 +1048,15 @@ MỤC LỤC NHANH
   Tip: S3 SSE-KMS / DynamoDB không có resource policy trên secret/token như Secrets Manager
   Lỗi hay nhầm: Parameter Store SecureString + withDecryption (đúng encrypt nhưng sai cross-account resource policy)
 
+[Câu] Q54 — Lambda shared account → ec2:DescribeInstances dev accounts (least privilege)
+  Yêu cầu đề: Lambda chạy ở shared account; cần DescribeInstances EC2 ở development accounts
+  Yêu cầu đề: Cross-account + least privilege — cấu hình IAM đúng pattern
+  Đáp án: Role ở dev accounts có ec2:DescribeInstances; trust shared account; Lambda execution role chỉ iam:AssumeRole (sts:AssumeRole) vào role dev
+  Tip: Permission truy cập resource = role ở account ĐÍCH (nơi có EC2); Lambda role nguồn chỉ AssumeRole
+  Tip: ec2:DescribeInstances trên Lambda role shared account KHÔNG đọc được EC2 account khác
+  Lỗi hay nhầm: Role + ec2:DescribeInstances ở shared account (C/A) — sai account
+  Lỗi hay nhầm: Role đúng ở dev nhưng gắn ec2:DescribeInstances lên Lambda role (D) — thiếu AssumeRole pattern
+
 [Câu] ABAC — engineer start/stop EC2 cùng tag team với IAM user
   Yêu cầu đề: ABAC; engineer chỉ start/stop instance có tag team = tag team trên IAM user
   Đáp án: IAM condition keys aws:ResourceTag/team và aws:PrincipalTag/team trong policy
@@ -1308,6 +1370,65 @@ MỤC LỤC NHANH
   Lỗi hay nhầm: Chọn termination-protection thay disable-rollback
   Lỗi hay nhầm: Parameter/tag PreserveResources — không phải flag CLI thật của CloudFormation
 
+[Câu] CFN Lambda — code + dependencies đã có trên S3 (LEAST effort)
+  Yêu cầu đề: Lambda deployment package + dependencies lưu S3; CFN template deploy AWS::Lambda::Function
+  Yêu cầu đề: Thêm S3 bucket vào template với ít effort nhất — code đã sẵn trên S3
+  Đáp án: Code.S3Bucket + Code.S3Key trong AWS::Lambda::Function (D)
+  Tip: ZipFile = embed zip inline trong template (nhỏ, không trỏ S3); S3Key ≠ ZipFile
+  Tip: Inline Code property — chỉ script nhỏ Node/Python; không cho package lớn + dependencies từ S3
+  Lỗi hay nhầm: C — nhầm S3 key với ZipFile (ZipFile là nội dung zip base64 trong template)
+
+[Câu] CFN Lambda Code — Inline / ZipFile / S3 (3 cách + ví dụ)
+  Yêu cầu đề: Phân biệt 3 property trong Code block của AWS::Lambda::Function
+  Yêu cầu đề: Biết khi nào dùng inline, ZipFile, S3Bucket+S3Key
+  Đáp án (chọn theo tình huống):
+    - S3Bucket + S3Key → package zip + dependencies đã upload S3 (production)
+    - ZipFile (Node/Python) → paste source code text trực tiếp trong template (PoC nhỏ)
+    - ZipFile (Java/.NET/Go) → base64 zip trong template (hiếm dùng; thực tế dùng S3)
+  Tip: ZipFile với Node/Python = source code text, KHÔNG phải file zip — CFN tự tạo index.js/index.py
+  Tip: Handler inline Node = index.handler; Python = index.handler (CFN wrap thành index file)
+  Tip: Inline/ZipFile không có node_modules; package lớn → S3
+  Tip: S3Key ≠ ZipFile — S3Key là đường dẫn object S3; ZipFile là nội dung embed trong template
+  Ví dụ ZipFile Node.js:
+    Code:
+      ZipFile: |
+        exports.handler = async (event) => {
+          return { statusCode: 200, body: JSON.stringify({ msg: 'Hello' }) };
+        };
+  Ví dụ ZipFile Python:
+    Code:
+      ZipFile: |
+        import json
+        def handler(event, context):
+            return {'statusCode': 200, 'body': json.dumps({'msg': 'Hello'})}
+  Ví dụ S3:
+    Code:
+      S3Bucket: my-deploy-bucket
+      S3Key: lambda/my-app-v1.zip
+
+[Câu] CFN — truyền tên/ARN Log Group cho Lambda lúc runtime
+  Yêu cầu đề: Lambda serverless deploy bằng CloudFormation; template đã tạo Log Group; app cần biết tên/ARN log group khi chạy
+  Yêu cầu đề: Đề hỏi cách đưa giá trị resource CFN vừa tạo vào code Lambda tại runtime
+  Đáp án: Truyền ARN (hoặc tên) Log Group qua Environment Variables của Lambda — !Ref / !GetAtt trong template
+  Tip: "available at runtime" + Lambda → Environment Variables; !Ref LogGroup = tên; !GetAtt LogGroup.Arn = ARN
+  Lỗi hay nhầm: AWS::Include transform — chỉ include snippet template từ S3 lúc build template, không inject config runtime cho app
+
+[Câu] Q36 — CFN deploy pre-prod → notify QA team
+  Yêu cầu đề: Mỗi environment = 1 CloudFormation stack, cùng template; cần thông báo QA khi có deployment mới ở pre-production
+  Yêu cầu đề: Chỉ stack pre-prod, không notify các env khác
+  Đáp án: Lambda notify QA + EventBridge rule (default bus) filter source aws.cloudformation + stack ARN pre-prod
+  Tip: CFN stack events tự phát lên EventBridge; filter ARN = chỉ 1 env; Lambda = custom message/route
+  Lỗi hay nhầm: SNS + "stack options" — không phải cơ chế chuẩn; đúng là NotificationARNs lúc create/update (ít linh hoạt hơn EventBridge)
+  Lỗi hay nhầm: Lambda event source mapping từ CloudFormation — ESM chỉ SQS/Kinesis/DDB Streams/Kafka/MQ
+  Lỗi hay nhầm: CloudWatch alarm filter stack status — CFN không có metric stack status chuẩn; events đi EventBridge
+
+[Câu] Q22 — CFN reference RDS hostname từ SSM Parameter Store (plaintext)
+  Yêu cầu đề: Deploy app bằng CloudFormation; RDS hostname lưu SSM Parameter Store dạng plaintext; cần đưa vào template lúc stack create
+  Đáp án: SSM dynamic reference — {{resolve:ssm:parameter-name}} (hoặc :version)
+  Tip: Plaintext/String parameter → ssm; SecureString (encrypted) → ssm-secure
+  Tip: !Ref = CFN parameter/resource trong template; !ImportValue = cross-stack Export/Import — không phải SSM
+  Lỗi hay nhầm: ssm-secure khi đề nói plaintext — secure chỉ cho SecureString
+
 --------------------------------------------------------------------------------
 18. STEP FUNCTIONS / CLOUDTRAIL
 --------------------------------------------------------------------------------
@@ -1393,7 +1514,7 @@ Execution logging       vs Access logging (API GW)
 Write Through           vs Lazy Loading + TTL
 Gateway Endpoint        vs Interface Endpoint (S3/DDB = Gateway)
 Trust policy            vs Permissions policy (cross-account)
-Logical ID đổi tên      vs Property update (Remove+Add vs Modify vs Replace)
+ZipFile Node/Python (source text) vs ZipFile Java (base64 zip) vs S3Bucket+S3Key (package trên S3)
 DeletionPolicy          vs UpdateReplacePolicy (xóa stack vs replace resource)
 buildspec.yml           vs appspec.yml
 CodeBuild               vs ASG (CB tự scale, không cần ASG)
@@ -1403,6 +1524,7 @@ Fargate sidecar          vs EC2 Daemon Set (X-Ray Fargate = sidecar)
 Task Execution Role     vs Task IAM Role (ECS)
 SnapStart (snapshot restore, cold start nhanh) vs Provisioned Concurrency (instance luôn ấm, không cold start)
 Lambda DLQ (chỉ original event) vs Lambda Destinations On Failure (event + error + response)
+Lambda DLQ target: SQS standard hoặc SNS — KHÔNG FIFO, KHÔNG Kinesis
 Partition Key (hash → physical partition) vs Sort Key (range → thứ tự trong partition)
 Hot partition skew key (write sharding suffix) vs tăng capacity On-Demand/Auto Scaling
 DynamoDB Stream view: KEYS_ONLY vs NEW_IMAGE vs OLD_IMAGE vs NEW_AND_OLD_IMAGES
@@ -1449,6 +1571,9 @@ DynamoDB Stream view: KEYS_ONLY vs NEW_IMAGE vs OLD_IMAGE vs NEW_AND_OLD_IMAGES
 36. API GW troubleshoot 400 — CloudTrail Insights (SAI); đúng execution + access logging → CloudWatch Logs trên stage
 37. Lambda Aurora connection string — IAM DB auth (SAI); đúng Parameter Store SecureString (single encrypted config)
 38. CloudFront resize ảnh — chỉ max TTL (SAI); đúng Lambda@Edge on-demand + lưu variant S3; tránh Batch pre-gen all variants
+39. API GW PROD/DEV Lambda alias — chọn "environment variable" (C); đúng stage variable + 2 stage (D)
+40. Lambda subset user test — tạo REST API mới + API GW canary (C); đúng weighted alias (D, least effort)
+41. Lambda async DLQ — chọn SQS FIFO DLQ (C); đúng SQS standard DLQ (B) — Lambda không hỗ trợ FIFO làm DLQ
 
 ================================================================================
   END OF FILE
