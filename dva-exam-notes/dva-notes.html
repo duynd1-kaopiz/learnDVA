@@ -2144,7 +2144,7 @@
   </div>
 
   <div id="beanstalk" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>Elastic Beanstalk</h2><span class="badge">22 câu</span></div>
+    <div class="panel-header"><h2>Elastic Beanstalk</h2><span class="badge">23 câu</span></div>
     <details class="service-topics" open>
       <summary>Câu hỏi hay ra đề — tra nhanh</summary>
       <table class="limits-table">
@@ -2153,6 +2153,8 @@
             <tr><td>1000 app versions</td><td class="ans">MaxCount / MaxAge lifecycle</td><td class="trap">Xóa thủ công từng version</td></tr>
             <tr><td>5 deploy policies</td><td class="ans">All at once · Rolling · Rolling+additional · Immutable · Traffic split</td><td class="trap">Blue/Green = 2 env swap URL</td></tr>
             <tr><td>Giữ capacity + minimize cost</td><td class="ans">Rolling + additional batch</td><td class="trap">Blue/Green 2 env full</td></tr>
+            <tr><td>Giảm capacity OK + zero downtime</td><td class="ans">Rolling</td><td class="trap">Rolling + additional batch (tốn thêm instance)</td></tr>
+            <tr><td>Phải giữ full capacity + zero downtime</td><td class="ans">Rolling + additional batch</td><td class="trap">Rolling (capacity tạm giảm)</td></tr>
             <tr><td>Script trước app start</td><td class="ans">.ebextensions container_commands</td><td class="trap">Procfile; user-data LT</td></tr>
             <tr><td>Rollback bug critical</td><td class="ans">Deploy previous application version</td><td class="trap">Xóa env; restart EC2</td></tr>
             <tr><td>ValidateService / ApplicationStart</td><td class="ans">CodeDeploy appspec hooks</td><td class="trap">EB native = .ebextensions</td></tr>
@@ -2365,6 +2367,50 @@
       </div>
       <span class="tip">Khác Rolling thường: Rolling giảm capacity; additional batch giữ nguyên</span>
       <span class="tip">Minimize cost + full capacity: chỉ thêm 1 batch tạm — rẻ hơn Immutable (duplicate cả fleet) và Blue/Green (2 env full)</span>
+    </div>
+
+    <div class="card">
+      <div class="q">Rolling vs Rolling with additional batch — khi nào chọn?</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Đề hỏi phân biệt 2 policy rolling — chọn theo <em>capacity</em> và <em>chi phí</em></li>
+          <li>Từ khóa trigger: <em>giảm capacity OK</em> vs <em>giữ full capacity</em> / <em>maintain capacity</em></li>
+          <li>Bẫy: chọn Blue/Green khi đề chỉ cần giữ capacity trong <em>1 environment</em> + minimize cost</li>
+        </ul>
+      </div>
+      <div class="a">Giảm capacity OK → Rolling · Phải giữ full capacity → Rolling + additional batch</div>
+      <div class="diagram">
+        <div class="diagram-label">Bảng so sánh</div>
+        <table class="limits-table">
+          <thead><tr><th></th><th>Rolling</th><th>Rolling + additional batch</th></tr></thead>
+          <tbody>
+            <tr><td>Cơ chế</td><td>Terminate batch cũ → launch batch mới (luân phiên)</td><td>Launch batch mới <em>trước</em> → chuyển traffic → terminate cũ</td></tr>
+            <tr><td>Capacity lúc deploy</td><td class="trap">Giảm tạm (vd 4 → 3 instance)</td><td class="ans">Giữ nguyên (thêm 1 batch tạm)</td></tr>
+            <tr><td>Chi phí thêm</td><td class="ans">Không thêm instance</td><td>Thêm 1 batch tạm thời</td></tr>
+            <tr><td>Zero downtime</td><td>Có</td><td>Có</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Decision: Rolling hay additional batch?</div>
+        <pre class="mermaid">flowchart TD
+  ZD{Zero downtime?}
+  ZD -->|Không — dev/test| AO[All at once]
+  ZD -->|Có| CAP{Giảm capacity tạm OK?}
+  CAP -->|Có — minimize cost| RO[Rolling]
+  CAP -->|Không — phải full capacity| RAB[Rolling + additional batch]
+  RAB --> COST{Minimize cost resource phụ?}
+  COST -->|Có| RAB2[Chỉ thêm 1 batch — đủ]
+  COST -->|Rollback nhanh / an toàn max| IM[Immutable]
+  IM -.->|tốn hơn| EXP[Duplicate cả fleet]
+  BG[Blue/Green] -.->|tốn nhất| EXP2[2 environment full]</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">1 dòng nhớ: <strong>Giảm capacity được → Rolling · Phải giữ full capacity → Rolling + additional batch</strong></span>
+        <span class="tip">Giữ capacity + minimize cost → additional batch (chỉ +1 batch); không Blue/Green (2 env) hay Immutable (duplicate fleet)</span>
+        <span class="tip">Ngược lại — T-series mất burst credit: Rolling <em>giữ</em> instance (credit không mất); Immutable / Traffic splitting <em>terminate</em> fleet → mất credit</span>
+      </div>
     </div>
 
     <div class="card">
@@ -6521,8 +6567,17 @@
       </div>
       <div class="compare-card">
         <h3>EB — Rolling vs Rolling + additional batch</h3>
+        <table class="limits-table">
+          <thead><tr><th>Trigger đề</th><th>Chọn</th></tr></thead>
+          <tbody>
+            <tr><td>Giảm capacity OK + zero downtime</td><td class="ans">Rolling</td></tr>
+            <tr><td>Giữ full capacity + zero downtime</td><td class="ans">Rolling + additional batch</td></tr>
+            <tr><td>Giữ capacity + minimize cost</td><td class="ans">Rolling + additional batch (+1 batch)</td></tr>
+            <tr><td>T-series mất burst credit</td><td class="trap">Không Rolling — dùng Immutable / Traffic splitting</td></tr>
+          </tbody>
+        </table>
         <div class="diagram"><pre class="mermaid">flowchart LR
-  RO[Rolling giảm capacity] --- RAB[Additional batch giữ full capacity]</pre></div>
+  RO[Rolling: terminate cũ → launch mới<br/>capacity giảm] --- RAB[Additional batch: launch mới trước<br/>full capacity]</pre></div>
       </div>
       <div class="compare-card">
         <h3>EB — Immutable vs Blue/Green</h3>

@@ -593,6 +593,16 @@ Script cập nhật: dva-exam-notes/scripts/inject-service-topics.py
   Tip: Minimize cost + giữ capacity → Rolling additional batch (chỉ thêm 1 batch); không chọn Blue/Green (2 env full) hay Immutable (duplicate cả fleet)
   Lỗi hay nhầm: Blue/Green — zero downtime OK nhưng tốn gấp đôi resource (2 environment song song)
 
+[Câu] Rolling vs Rolling with additional batch — khi nào chọn
+  Yêu cầu đề: Phân biệt 2 policy rolling; chọn theo capacity / cost trong 1 environment
+  Yêu cầu đề: Từ khóa "giảm capacity OK" vs "giữ full capacity" / "maintain capacity"
+  Đáp án: Giảm capacity OK → Rolling; phải giữ full capacity → Rolling + additional batch
+  Tip: Rolling = terminate batch cũ rồi launch mới → capacity tạm giảm; additional batch = launch mới trước → full capacity suốt deploy
+  Tip: 1 dòng nhớ: Giảm capacity được → Rolling · Phải giữ full capacity → Rolling + additional batch
+  Tip: Giữ capacity + minimize cost → additional batch (chỉ +1 batch); không Blue/Green (2 env) hay Immutable (duplicate fleet)
+  Tip: Ngược lại T-series mất burst credit → Immutable/Traffic splitting (terminate fleet); Rolling giữ instance → không mất credit
+  Lỗi hay nhầm: Đề "giữ full capacity" mà chọn Rolling (capacity vẫn giảm); đề "minimize cost" mà chọn Blue/Green
+
 [Câu] Rolling deploy thất bại một phần — terminate instance failed
   Yêu cầu đề: Rolling deployment; chỉ vài batch thành công, batch còn lại fail; team terminate instance failed
   Yêu cầu đề: Sau terminate, EB xử lý thế nào với instance đó?
