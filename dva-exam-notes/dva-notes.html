@@ -235,6 +235,77 @@
     .mistakes .item:last-child { border-bottom: none; }
     .mistakes .item::before { content: "✗ "; font-weight: bold; }
 
+    .limits-wrap { display: grid; gap: 1.25rem; }
+    .limits-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 1.15rem;
+      box-shadow: var(--shadow);
+    }
+    .limits-section h3 {
+      font-size: 1.08rem;
+      color: var(--q-color);
+      margin-bottom: .65rem;
+      font-weight: 700;
+    }
+    .limits-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .95rem;
+      line-height: 1.5;
+    }
+    .limits-table th,
+    .limits-table td {
+      text-align: left;
+      padding: .45rem .6rem;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    .limits-table th {
+      font-size: .82rem;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      color: var(--muted);
+      font-weight: 700;
+    }
+    .limits-table tr:last-child td { border-bottom: none; }
+    .limits-table td:first-child { font-weight: 600; color: var(--text); white-space: nowrap; }
+    .limits-table .hard { color: var(--red); font-weight: 700; }
+    .limits-note {
+      margin-top: .75rem;
+      font-size: .92rem;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+    .cicd-topics-wrap { display: grid; gap: 1.25rem; }
+    .cicd-topics-wrap .limits-table td:nth-child(2),
+    .service-topics .limits-table td.ans { font-weight: 600; color: var(--accent); }
+    .cicd-topics-wrap .trap,
+    .service-topics .trap { color: var(--red); font-size: .9rem; }
+
+    .service-topics {
+      margin-bottom: 1.25rem;
+      background: linear-gradient(135deg, #f0f9ff 0%, #fff 100%);
+      border: 1px solid #bae6fd;
+      border-radius: 10px;
+      padding: .65rem 1rem 1rem;
+      box-shadow: var(--shadow);
+    }
+    .service-topics summary {
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 1rem;
+      color: var(--q-color);
+      padding: .35rem 0;
+      list-style: none;
+    }
+    .service-topics summary::-webkit-details-marker { display: none; }
+    .service-topics summary::before { content: "📋 "; }
+    .service-topics[open] summary { margin-bottom: .65rem; border-bottom: 1px dashed var(--border); padding-bottom: .5rem; }
+    .service-topics .limits-table { font-size: .9rem; }
+    .service-topics .limits-table td:first-child { white-space: normal; min-width: 9rem; }
+
     /* Diagrams */
     .diagram {
       margin-top: .75rem;
@@ -321,7 +392,7 @@
   <h1>AWS <span>DVA-C02</span> — Ghi chú ôn thi</h1>
   <p>Tổng hợp câu hỏi, đáp án và tip nhớ theo service</p>
   <div class="meta">
-    <span>Cập nhật: 2026-06-21</span>
+    <span>Cập nhật: 2026-06-25</span>
     <span>Có sơ đồ Mermaid</span>
     <span>Skill: dva-exam-notes</span>
     <span>dva-notes.txt</span>
@@ -350,6 +421,7 @@
     <button class="tab-btn" data-tab="other" role="tab">SFN / Trail</button>
     <button class="tab-btn" data-tab="xray" role="tab">X-Ray</button>
     <button class="tab-btn" data-tab="arch" role="tab">Kiến trúc</button>
+    <button class="tab-btn" data-tab="limits" role="tab">Giới hạn</button>
     <button class="tab-btn" data-tab="compare" role="tab">Phân biệt</button>
     <button class="tab-btn" data-tab="mistakes" role="tab">Lỗi hay nhầm</button>
   </div>
@@ -358,7 +430,27 @@
 <main>
 
   <div id="api-gateway" class="tab-panel active" role="tabpanel">
-    <div class="panel-header"><h2>API Gateway</h2><span class="badge">11 câu</span></div>
+    <div class="panel-header"><h2>API Gateway</h2><span class="badge">15 câu</span></div>
+    <details class="service-topics" open>
+      <summary>Câu hỏi hay ra đề — tra nhanh</summary>
+      <table class="limits-table">
+        <thead><tr><th>Đề hỏi / từ khóa</th><th>Đáp án</th><th>Bẫy</th></tr></thead>
+        <tbody>
+            <tr><td>prod/dev → Lambda alias khác</td><td class="ans">Stages + Stage Variables trỏ alias</td><td class="trap">Environment variable Lambda</td></tr>
+            <tr><td>Rẻ + nhanh, không API keys</td><td class="ans">HTTP API</td><td class="trap">Private REST API</td></tr>
+            <tr><td>429 burst bảo vệ Lambda</td><td class="ans">Usage plan burst + rate limit</td><td class="trap">Caching; Provisioned concurrency</td></tr>
+            <tr><td>Validate query/header trước Lambda</td><td class="ans">Request Validator (REST)</td><td class="trap">Lambda Authorizer</td></tr>
+            <tr><td>Debug HTTP 400 client</td><td class="ans">Execution + access logging → CW Logs</td><td class="trap">CloudTrail Insights</td></tr>
+            <tr><td>504 timeout backend</td><td class="ans">Integration max 29 giây</td><td class="trap">Tăng Lambda timeout >29s vẫn 504</td></tr>
+            <tr><td>NOT supported access control</td><td class="ans">STS</td><td class="trap">IAM SigV4 (có hỗ trợ)</td></tr>
+            <tr><td>Third-party API key ẩn khỏi browser</td><td class="ans">REST + HTTP integration + API key header</td><td class="trap">Lambda proxy (đắt hơn)</td></tr>
+            <tr><td>Mock GET trả HTML</td><td class="ans">Response template text/html</td><td class="trap">HTML trong request template</td></tr>
+            <tr><td>CFN update method mới → 404</td><td class="ans">create-deployment publish stage</td><td class="trap">Chỉ UPDATE_COMPLETE stack</td></tr>
+            <tr><td>WebSocket authorizer + cache</td><td class="ans">REQUEST authorizer + context mapping</td><td class="trap">Token-based (WS không có)</td></tr>
+            <tr><td>Authorizer claim cũ sau đổi IdP</td><td class="ans">Authorizer cache TTL</td><td class="trap">Cache trên Cognito pool</td></tr>
+        </tbody>
+      </table>
+    </details>
     <div class="card">
       <div class="q">API versioning (v1/v2/test)</div>
       <div class="req">
@@ -648,14 +740,259 @@
         <span class="tip">Cognito không có "authorization caching"; IAM tag ≠ JWT claim</span>
       </div>
     </div>
+
+    <div class="card">
+      <div class="q">SPA public — third-party API, ẩn API key, cost thấp nhất</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>SPA <em>public</em>; browser gọi backend; backend gọi <em>third-party HTTP API</em></li>
+          <li>Third-party yêu cầu <em>API key trong HTTP header</em></li>
+          <li>API key công ty <strong>không được lộ</strong> cho user trên browser</li>
+          <li>Đề hỏi giải pháp <em>cost-effective nhất</em></li>
+          <li>Bẫy A/B: <em>Private REST API</em> — chỉ VPC endpoint, browser public không gọi được</li>
+          <li>Bẫy C: Lambda proxy — ẩn key được nhưng tốn hơn khi chỉ forward request</li>
+        </ul>
+      </div>
+      <div class="a">REST API (public) + HTTP integration + API key trong integration request headers</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Ẩn API key + tối ưu chi phí</div>
+        <pre class="mermaid">flowchart LR
+  B[Browser SPA] -->|không có API key| GW[API Gateway REST public]
+  GW -->|HTTP integration + header x-api-key server-side| TP[Third-party HTTP API]
+  PRIV[Private REST API] -.->|chỉ VPC endpoint| X[Browser không truy cập]
+  LAM[Lambda proxy mỗi request] -.->|thêm chi phí Lambda| TP</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">HTTP integration: API GW gọi thẳng HTTP endpoint, inject header — không cần Lambda</span>
+        <span class="tip">Integration request mapping: thêm static header (API key) — chỉ tồn tại phía server</span>
+        <span class="tip">Lambda proxy hợp lý khi cần transform logic phức tạp — không phải bài forward đơn giản</span>
+        <span class="tip">Private REST API ≠ bảo mật API key — là network isolation trong VPC</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="q">WebSocket API — authorizer cache + giảm gửi lại secret (chọn 2)</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li><strong>WebSocket API</strong> Gateway; dùng <em>Lambda authorizer</em> kiểm soát truy cập</li>
+          <li>Cần <em>credential caching</em> + giảm dùng lại secret key/token <em>mỗi request</em></li>
+          <li>Chọn <strong>2 bước</strong></li>
+          <li>Bẫy B: <em>token-based</em> authorizer — WebSocket không hỗ trợ</li>
+          <li>Bẫy E: <em>identity API key</em> từ authorizer — nhầm API key với authorizer context</li>
+        </ul>
+      </div>
+      <div class="a">A — REQUEST (parameter-based) Lambda authorizer · C — integration mapping tham chiếu <strong>context map</strong> authorizer</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — WebSocket $connect + cache</div>
+        <pre class="mermaid">sequenceDiagram
+  participant C as Client
+  participant GW as WebSocket API GW
+  participant A as Lambda Authorizer REQUEST
+  participant BE as Backend integration
+  C->>GW: $connect + auth param/header
+  GW->>A: Authorize (cache miss)
+  A-->>GW: Allow + context map
+  Note over GW: Cache credentials TTL
+  GW->>BE: Mapping $context.authorizer.*
+  BE-->>C: Connected — không cần gửi lại secret mỗi message</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">WebSocket chỉ REQUEST authorizer; REST mới có cả TOKEN và REQUEST</span>
+        <span class="tip">Authorizer caching: cache policy/context theo identity source — giảm invoke authorizer</span>
+        <span class="tip">Context map: Lambda authorizer return {"context": {...}} → backend đọc qua mapping template</span>
+        <span class="tip">API key (usage plan) ≠ Lambda authorizer context — đừng chọn E</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="q">Mock integration — GET /LandingPage trả HTML tĩnh</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>API GW + Lambda proxy; cần <em>landing page HTML</em> overview các backend API</li>
+          <li>Tạo <code>/LandingPage</code> + <code>GET</code> với <em>mock integration</em></li>
+          <li>Đề hỏi cấu hình <em>integration request/response mapping template</em></li>
+          <li>Bẫy: đặt HTML vào request template thay vì response template</li>
+        </ul>
+      </div>
+      <div class="a">B — Request: application/json + statusCode 200 · Response: text/html + HTML landing page</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Mock integration trả HTML</div>
+        <pre class="mermaid">sequenceDiagram
+  participant C as Client browser
+  participant GW as API Gateway
+  participant M as Mock integration
+  C->>GW: GET /LandingPage
+  GW->>M: Integration REQUEST template
+  Note over M: {"statusCode": 200}
+  M-->>GW: Mock response status 200
+  GW->>GW: Integration RESPONSE template
+  Note over GW: Content-Type text/html + HTML body
+  GW-->>C: 200 text/html landing page</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">Mock request template = JSON statusCode — không phải nơi chứa HTML</span>
+        <span class="tip">HTML + Content-Type text/html → Integration RESPONSE mapping template</span>
+        <span class="tip">Mock = không gọi backend; API GW tự generate response theo template</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="q">CFN + CodePipeline — method mới 404 dù stack UPDATE_COMPLETE</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>REST API trong CFN: RestApi, Resource, Method, Stage, Deployment + CodePipeline</li>
+          <li>Thêm resource/method → stack <code>UPDATE_COMPLETE</code> nhưng endpoint mới <strong>404</strong></li>
+          <li>Bẫy: CloudFront invalidation; disable-rollback; stack failure options</li>
+        </ul>
+      </div>
+      <div class="a">B — CodeBuild stage chạy <code>aws apigateway create-deployment</code> (publish lên stage)</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — API GW deployment vs stage</div>
+        <pre class="mermaid">flowchart TD
+  CFN[CFN update Method/Resource] --> DEF[API definition mới trong console]
+  DEF --> OLD[Stage vẫn trỏ Deployment snapshot cũ]
+  OLD --> E404[Client gọi path mới → 404]
+  DEP[create-deployment] --> NEW[Deployment snapshot mới]
+  NEW --> STG[Stage trỏ deployment mới]
+  STG --> OK[Method mới available]</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">Stage serve deployment snapshot — cập nhật Method ≠ auto publish stage</span>
+        <span class="tip">AWS::ApiGateway::Deployment cần thay đổi/replace để CFN tự deploy — exam hay chọn CLI create-deployment trong pipeline</span>
+        <span class="tip">404 API GW ≠ CloudFront cache stale</span>
+      </div>
+    </div>
   </div>
 
   <div id="lambda" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>Lambda</h2><span class="badge">12 câu</span></div>
+    <div class="panel-header"><h2>Lambda</h2><span class="badge">16 câu</span></div>
+    <details class="service-topics" open>
+      <summary>Câu hỏi hay ra đề — tra nhanh</summary>
+      <table class="limits-table">
+        <thead><tr><th>Đề hỏi / từ khóa</th><th>Đáp án</th><th>Bẫy</th></tr></thead>
+        <tbody>
+            <tr><td>Zip quá lớn direct upload</td><td class="ans">S3 deploy hoặc container ECR</td><td class="trap">CLI --publish; support ticket</td></tr>
+            <tr><td>Async fail chỉ cần event</td><td class="ans">SQS standard DLQ</td><td class="trap">FIFO DLQ</td></tr>
+            <tr><td>Async fail + error details</td><td class="ans">Destinations On Failure</td><td class="trap">DLQ</td></tr>
+            <tr><td>Cross-account DynamoDB</td><td class="ans">AssumeRole; trust policy role B</td><td class="trap">Trust policy role A</td></tr>
+            <tr><td>Giảm cold start Java</td><td class="ans">SnapStart + publish version</td><td class="trap">Provisioned concurrency (đắt)</td></tr>
+            <tr><td>Predictable latency + init lúc allocation</td><td class="ans">Provisioned concurrency + published version</td><td class="trap">Reserved concurrency</td></tr>
+            <tr><td>In-house traffic shift %</td><td class="ans">Weighted alias</td><td class="trap">CodeDeploy canary</td></tr>
+            <tr><td>EventBridge không invoke Lambda</td><td class="ans">Resource policy events.amazonaws.com</td><td class="trap">Execution role PutEvents</td></tr>
+            <tr><td>Custom metrics từ logs real-time</td><td class="ans">EMF + open source client libs</td><td class="trap">Logs Insights; Kinesis→S3</td></tr>
+            <tr><td>Data >1MB encrypt runtime</td><td class="ans">Envelope encryption + file ref</td><td class="trap">KMS Encrypt API; env var 4KB</td></tr>
+            <tr><td>API key trong Lambda config + CMK</td><td class="ans">Env vars + KMS CMK</td><td class="trap">Parameter Store default key</td></tr>
+            <tr><td>Deps lớn chia sẻ / file tạm runtime</td><td class="ans">Layers ≤5 + 250MB unzipped; /tmp 512MB–10GB</td><td class="trap">Layer vượt cap; env var scratch</td></tr>
+            <tr><td>Memory / timeout</td><td class="ans">128MB–10GB memory; timeout max 15 phút</td><td class="trap">API GW sync vẫn 29s</td></tr>
+            <tr><td>Reserved vs Provisioned</td><td class="ans">Reserved = cap concurrency; Provisioned = warm</td><td class="trap">Nhầm reserved = pre-warm</td></tr>
+        </tbody>
+      </table>
+    </details>
     <div class="card">
       <div class="q">Node.js + dependencies (pg/RDS)</div>
       <div class="a">Zip chung code + node_modules trong 1 file</div>
       <span class="tip">Lambda KHÔNG tự npm install; không upload 2 zip riêng</span>
+    </div>
+
+    <div class="card">
+      <div class="q">Bundle dependencies</div>
+      <div class="a">1 deployment package hoặc Lambda Layers</div>
+      <span class="tip">Max 5 layers/function; code + layers unzipped ≤ 250 MB</span>
+    </div>
+
+    <div class="card">
+      <div class="q">Lambda Layers vs /tmp — giới hạn</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Dependencies lớn — chia sẻ runtime/SDK qua <em>Layers</em></li>
+          <li>Function cần ghi <em>file tạm</em> khi xử lý (video, unzip, cache local)</li>
+          <li>Phân biệt: deployment size vs scratch disk runtime</li>
+        </ul>
+      </div>
+      <div class="a">Layers: max 5; publish ~50 MB zipped; <strong>code + layers unzipped ≤ 250 MB</strong> · /tmp: default <strong>512 MB</strong>, cấu hình tới <strong>10 GB</strong> (EphemeralStorage)</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Layer vs /tmp</div>
+        <pre class="mermaid">flowchart LR
+  subgraph deploy [Deploy time — 250 MB unzipped cap]
+    FN[Function code]
+    L1[Layer 1]
+    L2[Layer 2]
+    FN --> TOTAL[≤ 250 MB unzipped]
+    L1 --> TOTAL
+    L2 --> TOTAL
+  end
+  subgraph runtime [Runtime — /tmp ephemeral]
+    INV[Invocation] --> TMP["/tmp scratch disk"]
+    TMP -->|default 512 MB| D512[512 MB]
+    TMP -->|max config| D10[10 GB]
+  end
+  PERSIST[S3 / EFS] -.->|lưu lâu dài| INV</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">Layer ≠ vượt 250 MB — vẫn trong cap chung; quá lớn → container image ~10 GB</span>
+        <span class="tip">/tmp warm có thể còn data invoke trước (cùng execution environment) — không durable, không share mọi concurrent invoke</span>
+        <span class="tip">File tạm lớn 1 lần → tăng ephemeral storage; kết quả lâu dài → S3</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="q">RequestEntityTooLargeException — zip quá lớn (chọn 2)</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Upload <code>.zip</code> Lambda qua console → <code>RequestEntityTooLargeException</code></li>
+          <li>Chọn <strong>2</strong> cách publish code khi vượt direct upload limit</li>
+          <li>Bẫy: CLI <code>--publish</code>; Support ticket; code signing</li>
+        </ul>
+      </div>
+      <div class="a">B + C — Container image trên ECR · Upload zip S3 rồi deploy từ S3 qua console</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Lambda deployment size limits</div>
+        <pre class="mermaid">flowchart TD
+  ZIP[Deployment package .zip] --> DIRECT[Console/CLI direct upload]
+  DIRECT -->|max ~50 MB zipped| FAIL[RequestEntityTooLargeException]
+  ZIP --> S3[Upload S3 → deploy from S3]
+  S3 -->|max ~250 MB unzipped| OK1[OK]
+  ZIP --> ECR[Docker image → ECR]
+  ECR -->|~10 GB image| OK2[OK]
+  CLI[update-function-code --publish] -.->|vẫn direct upload| FAIL</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">--publish chỉ publish version sau update — không tăng size limit</span>
+        <span class="tip">Package quá lớn → S3 hoặc container image ECR</span>
+        <span class="tip">Code signing = integrity, không fix size</span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="q">Custom metrics processing time từ Lambda logs (EMF)</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Lambda xử lý data; cần <em>custom metrics</em> (vd processing time) từ <strong>logs</strong></li>
+          <li>Graph + alarm + phát hiện issue <em>real-time</em></li>
+          <li>Bẫy: Kinesis→S3; CloudTrail PutMetricData; Logs Insights query</li>
+        </ul>
+      </div>
+      <div class="a">C — Amazon open source libraries + <strong>CloudWatch Embedded Metric Format (EMF)</strong> → CloudWatch graphs/alarms</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — EMF từ Lambda</div>
+        <pre class="mermaid">flowchart LR
+  L[Lambda code] -->|aws-embedded-metrics lib| LOG[CloudWatch Logs EMF JSON]
+  LOG -->|auto extract| M[Custom metrics]
+  M --> G[CloudWatch graphs]
+  M --> A[CloudWatch alarms real-time]
+  KIN[Kinesis to S3] -.->|SAI pattern| X[Không chuẩn custom metrics]</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">EMF = log 1 dòng JSON → metric + dimensions tự động, không flood PutMetricData</span>
+        <span class="tip">PutMetricData = CloudWatch API — không phải CloudTrail (B)</span>
+        <span class="tip">Logs Insights = query phân tích — khác emit metrics real-time từ application code</span>
+      </div>
     </div>
     <div class="card">
       <div class="q">Cross-account → DynamoDB (Account B)</div>
@@ -836,6 +1173,36 @@
     </div>
 
     <div class="card">
+      <div class="q">S3 transform — predictable latency, init at allocation (chọn 2)</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Lambda S3 transform; invoke <em>chậm không đều</em> (cold start)</li>
+          <li>Cần <strong>predictable low latency</strong>; init libs/clients lúc <em>allocation time</em></li>
+          <li>Chọn <strong>2</strong></li>
+          <li>Bẫy: Reserved concurrency; $LATEST; EventBridge Scheduler</li>
+        </ul>
+      </div>
+      <div class="a">A + C — <strong>Provisioned concurrency</strong> + <strong>publish version</strong></div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Provisioned vs Reserved concurrency</div>
+        <pre class="mermaid">flowchart TD
+  PC[Provisioned concurrency] --> WARM[N environments ấm sẵn]
+  WARM --> INIT[Init libs/clients lúc allocation]
+  INIT --> FAST[Invoke predictable low latency]
+  RC[Reserved concurrency] --> CAP[Chỉ cap max concurrent]
+  CAP -.->|không pre-warm| COLD[Cold start vẫn xảy ra]
+  VER[Publish version] --> PC
+  LATEST[$LATEST] -.->|PC không gắn trực tiếp| X[E sai]</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">Provisioned = warm instances; Reserved = throttle/limit concurrency</span>
+        <span class="tip">PC áp dụng version/alias đã publish — deploy xong publish version (C)</span>
+        <span class="tip">Init phase chạy khi environment được allocate — PC allocate trước request</span>
+      </div>
+    </div>
+
+    <div class="card">
       <div class="q">EventBridge schedule → Lambda không chạy (rule enabled)</div>
       <div class="req">
         <div class="req-title">Yêu cầu đề thường gặp</div>
@@ -954,7 +1321,27 @@
   </div>
 
   <div id="s3" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>S3</h2><span class="badge">21 câu</span></div>
+    <div class="panel-header"><h2>S3</h2><span class="badge">22 câu</span></div>
+    <details class="service-topics" open>
+      <summary>Câu hỏi hay ra đề — tra nhanh</summary>
+      <table class="limits-table">
+        <thead><tr><th>Đề hỏi / từ khóa</th><th>Đáp án</th><th>Bẫy</th></tr></thead>
+        <tbody>
+            <tr><td>Truy cập tạm private bucket</td><td class="ans">Pre-signed URL</td><td class="trap">Long-term IAM keys external</td></tr>
+            <tr><td>Upload tạm 2h cross-account</td><td class="ans">Pre-signed PUT hoặc STS AssumeRole</td><td class="trap">IAM user keys</td></tr>
+            <tr><td>Static website 403</td><td class="ans">Bucket policy public GetObject</td><td class="trap">CORS (cross-origin)</td></tr>
+            <tr><td>S3 mới CF cũ</td><td class="ans">CloudFront invalidation</td><td class="trap">Chỉ upload S3</td></tr>
+            <tr><td>Subset CSV lớn</td><td class="ans">S3 Select</td><td class="trap">Analytics; Inventory</td></tr>
+            <tr><td>On-prem 2GB upload nhanh</td><td class="ans">Multipart + Transfer Acceleration</td><td class="trap">Chỉ multipart</td></tr>
+            <tr><td>Medical CMK + audit + rotate</td><td class="ans">SSE-KMS CMK + key rotation</td><td class="trap">SSE-C; SSE-S3</td></tr>
+            <tr><td>High request rate</td><td class="ans">Phân tán object key prefix</td><td class="trap">Object tags; root prefix</td></tr>
+            <tr><td>Versioning xóa sau 1 năm</td><td class="ans">Lifecycle expire + delete noncurrent</td><td class="trap">Chỉ delete markers</td></tr>
+            <tr><td>Concurrent PUT cùng key thiếu event</td><td class="ans">Non-versioned có thể 1 event</td><td class="trap">Versioning = nguyên nhân</td></tr>
+            <tr><td>File >5 GB upload</td><td class="ans">Multipart upload</td><td class="trap">Single PUT max 5 GB</td></tr>
+            <tr><td>Deny unencrypted upload</td><td class="ans">Default encryption + bucket policy Deny SSE</td><td class="trap">SecureTransport ≠ SSE at-rest</td></tr>
+        </tbody>
+      </table>
+    </details>
     <div class="card">
       <div class="q">Private bucket, truy cập tạm thời</div>
       <div class="req">
@@ -1335,10 +1722,54 @@
         <span class="tip">~3500 PUT/s và ~5500 GET/s mỗi prefix — thêm prefix = thêm throughput</span>
       </div>
     </div>
+
+    <div class="card">
+      <div class="q">Versioning bật — xóa vĩnh viễn sau 1 năm tạo</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Bucket <strong>versioning enabled</strong>; object có thể có nhiều version</li>
+          <li>Yêu cầu: <em>permanently removed</em> 1 năm sau <strong>object creation</strong></li>
+          <li>Đề hỏi bước tiếp theo — không Lambda custom</li>
+          <li>Bẫy C: chỉ <em>delete expired delete markers</em> + noncurrent — thiếu expire current</li>
+          <li>Bẫy A/D: event notification + Lambda — over-engineered</li>
+        </ul>
+      </div>
+      <div class="a">S3 Lifecycle: <strong>expire current versions</strong> + <strong>permanently delete noncurrent versions</strong> sau 1 năm</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Lifecycle versioned bucket</div>
+        <pre class="mermaid">flowchart TD
+  OBJ[Object versions trong bucket] --> CUR[Current version]
+  OBJ --> NC[Noncurrent versions]
+  CUR -->|Expire current sau 365 ngày| DM[Delete marker / expire]
+  NC -->|Permanently delete noncurrent sau 365 ngày| DEL[Xóa vĩnh viễn data]
+  MARK[Delete expired delete markers] -.->|chỉ dọn marker| CLEAN[Dọn listing]
+  MARK -.x|không thay expire current| CUR</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">Expire current = object đang "sống" hết hạn; noncurrent delete = version cũ bị purge</span>
+        <span class="tip">Thiếu expire current → current version có thể tồn tại mãi</span>
+        <span class="tip">S3 Lifecycle = managed, không code; Lambda event on create không tự xóa sau 1 năm</span>
+      </div>
+    </div>
   </div>
 
   <div id="cloudfront" class="tab-panel" role="tabpanel">
     <div class="panel-header"><h2>CloudFront</h2><span class="badge">6 câu</span></div>
+    <details class="service-topics" open>
+      <summary>Câu hỏi hay ra đề — tra nhanh</summary>
+      <table class="limits-table">
+        <thead><tr><th>Đề hỏi / từ khóa</th><th>Đáp án</th><th>Bẫy</th></tr></thead>
+        <tbody>
+            <tr><td>Route origin theo country</td><td class="ans">Lambda@Edge origin request</td><td class="trap">CloudFront Function</td></tr>
+            <tr><td>Origin Group failover (chọn 2)</td><td class="ans">Mỗi request thử primary; GET/HEAD/OPTIONS only</td><td class="trap">Cache hit gọi primary</td></tr>
+            <tr><td>?lang= cache sai ngôn ngữ</td><td class="ans">Cache policy whitelist query lang</td><td class="trap">Chỉ giảm TTL</td></tr>
+            <tr><td>Static S3 + dynamic ALB global</td><td class="ans">Multiple origins + behaviors</td><td class="trap">Global Accelerator</td></tr>
+            <tr><td>Resize ảnh theo GET params</td><td class="ans">Lambda@Edge on-demand + lưu S3</td><td class="trap">Pre-gen all variants; chỉ TTL</td></tr>
+            <tr><td>Auth Cognito trước EC2</td><td class="ans">Cognito trên ALB</td><td class="trap">CloudFront built-in User Pool</td></tr>
+        </tbody>
+      </table>
+    </details>
     <div class="card">
       <div class="q">Route S3 theo country (cache miss)</div>
       <div class="a">Lambda@Edge + origin request</div>
@@ -1473,7 +1904,22 @@
   </div>
 
   <div id="ecs" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>ECS / Fargate / ECR</h2><span class="badge">11 câu</span></div>
+    <div class="panel-header"><h2>ECS / Fargate / ECR</h2><span class="badge">12 câu</span></div>
+    <details class="service-topics" open>
+      <summary>Câu hỏi hay ra đề — tra nhanh</summary>
+      <table class="limits-table">
+        <thead><tr><th>Đề hỏi / từ khóa</th><th>Đáp án</th><th>Bẫy</th></tr></thead>
+        <tbody>
+            <tr><td>2 container sidecar Fargate</td><td class="ans">1 task definition, 2 containers</td><td class="trap">2 task definitions riêng</td></tr>
+            <tr><td>X-Ray trên Fargate</td><td class="ans">Sidecar daemon + Task IAM role</td><td class="trap">Daemon Set (EC2 only)</td></tr>
+            <tr><td>Pull ECR / logs fail</td><td class="ans">Task Execution Role</td><td class="trap">Task Role</td></tr>
+            <tr><td>App gọi S3/DDB fail</td><td class="ans">Task IAM Role</td><td class="trap">Execution Role</td></tr>
+            <tr><td>Task role EC2 không hoạt động</td><td class="ans">ECS_ENABLE_TASK_IAM_ROLE=true</td><td class="trap">Fargate cần ecs.config</td></tr>
+            <tr><td>EC2 launch → Fargate</td><td class="ans">PutClusterCapacityProviders FARGATE+SPOT</td><td class="trap">CreateCapacityProvider only</td></tr>
+            <tr><td>CodeBuild push ECR fail</td><td class="ans">CodeBuild IAM role ecr:*</td><td class="trap">Security Group</td></tr>
+        </tbody>
+      </table>
+    </details>
     <div class="card">
       <div class="q">Serverless + 2 container — sidecar pattern</div>
       <div class="req">
@@ -1667,10 +2113,57 @@
       </div>
       <span class="tip">ALB = ai nhận traffic. Grace period = task mới có thời gian boot trước khi bị coi là unhealthy.</span>
     </div>
+
+    <div class="card">
+      <div class="q">Migrate ECS EC2 → Fargate — least downtime</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>App <em>critical</em> đang ECS <strong>EC2 launch type</strong></li>
+          <li>Migrate sang <strong>Fargate</strong> với capacity provider strategy</li>
+          <li><em>LEAST downtime</em> — chuyển dần, không rebuild cluster</li>
+          <li>Bẫy: <code>CreateCapacityProvider</code> cho FARGATE; Spot làm Provider 1 + base</li>
+        </ul>
+      </div>
+      <div class="a">A — <code>PutClusterCapacityProviders</code> + FARGATE (base) + FARGATE_SPOT (failover)</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — EC2 → Fargate in-place</div>
+        <pre class="mermaid">flowchart TD
+  CLUSTER[ECS cluster hiện có] --> PUT[PutClusterCapacityProviders]
+  PUT --> P1[FARGATE Provider 1 base]
+  PUT --> P2[FARGATE_SPOT Provider 2 failover]
+  SVC[Update service capacity provider strategy] --> TASKS[Tasks chuyển dần EC2 → Fargate]
+  CP[CreateCapacityProvider] -.->|custom EC2 ASG only| X[Sai cho FARGATE managed]</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">PutClusterCapacityProviders = gắn provider vào cluster — migrate không cần cluster mới</span>
+        <span class="tip">FARGATE/FARGATE_SPOT = AWS-managed — không CreateCapacityProvider</span>
+        <span class="tip">Critical app: on-demand FARGATE primary; Spot chỉ overflow/failover</span>
+      </div>
+    </div>
   </div>
 
   <div id="beanstalk" class="tab-panel" role="tabpanel">
     <div class="panel-header"><h2>Elastic Beanstalk</h2><span class="badge">22 câu</span></div>
+    <details class="service-topics" open>
+      <summary>Câu hỏi hay ra đề — tra nhanh</summary>
+      <table class="limits-table">
+        <thead><tr><th>Đề hỏi / từ khóa</th><th>Đáp án</th><th>Bẫy</th></tr></thead>
+        <tbody>
+            <tr><td>1000 app versions</td><td class="ans">MaxCount / MaxAge lifecycle</td><td class="trap">Xóa thủ công từng version</td></tr>
+            <tr><td>5 deploy policies</td><td class="ans">All at once · Rolling · Rolling+additional · Immutable · Traffic split</td><td class="trap">Blue/Green = 2 env swap URL</td></tr>
+            <tr><td>Giữ capacity + minimize cost</td><td class="ans">Rolling + additional batch</td><td class="trap">Blue/Green 2 env full</td></tr>
+            <tr><td>Script trước app start</td><td class="ans">.ebextensions container_commands</td><td class="trap">Procfile; user-data LT</td></tr>
+            <tr><td>Rollback bug critical</td><td class="ans">Deploy previous application version</td><td class="trap">Xóa env; restart EC2</td></tr>
+            <tr><td>ValidateService / ApplicationStart</td><td class="ans">CodeDeploy appspec hooks</td><td class="trap">EB native = .ebextensions</td></tr>
+            <tr><td>Decouple job lâu + SQS</td><td class="ans">Worker environment tier</td><td class="trap">Web server tier</td></tr>
+            <tr><td>Mất burst credit T-series</td><td class="ans">Immutable hoặc Traffic splitting</td><td class="trap">Rolling giữ instance</td></tr>
+            <tr><td>Cross-account share config</td><td class="ans">Download Saved Config + S3 account B</td><td class="trap">Import by name; IAM share</td></tr>
+            <tr><td>Feature flags real-time</td><td class="ans">AppConfig + Agent localhost</td><td class="trap">Parameter Store SDK poll</td></tr>
+            <tr><td>ELB unhealthy ASG không thay</td><td class="ans">HealthCheckType ELB trong .ebextensions</td><td class="trap">EC2 status check only</td></tr>
+        </tbody>
+      </table>
+    </details>
     <div class="card">
       <div class="q">EB keywords — Application, Environment, Application Version</div>
       <div class="req">
@@ -2140,7 +2633,19 @@
   </div>
 
   <div id="ec2" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>EC2 / Auto Scaling / ELB</h2><span class="badge">9 câu</span></div>
+    <div class="panel-header"><h2>EC2 / Auto Scaling / ELB</h2><span class="badge">10 câu</span></div>
+    <details class="service-topics" open>
+      <summary>Câu hỏi hay ra đề — tra nhanh</summary>
+      <table class="limits-table">
+        <thead><tr><th>Đề hỏi / từ khóa</th><th>Đáp án</th><th>Bẫy</th></tr></thead>
+        <tbody>
+            <tr><td>SSL termination HTTPS</td><td class="ans">ALB terminate SSL</td><td class="trap">SSL pass-through</td></tr>
+            <tr><td>Multi-AZ RDS failover</td><td class="ans">SYNCHRONOUS (Multi-AZ)</td><td class="trap">Async (Read Replica)</td></tr>
+            <tr><td>Bootstrap CodeDeploy agent</td><td class="ans">User data / Launch Template</td><td class="trap">CodePipeline config</td></tr>
+            <tr><td>Instance role Deny S3 + creds admin</td><td class="ans">Credentials file ưu tiên hơn role</td><td class="trap">Deny role thắng</td></tr>
+        </tbody>
+      </table>
+    </details>
     <div class="card">
       <div class="q">Spot + On-Demand + CodeDeploy agent</div>
       <div class="a">Launch Template + User data</div>
@@ -2246,10 +2751,50 @@
       </div>
       <span class="tip">Cần single-tenant rẻ nhất → Dedicated Instances; cần kiểm soát socket/BYOL → Dedicated Hosts</span>
     </div>
+
+    <div class="card">
+      <div class="q">Feature flags EC2 — AppConfig Agent poll + cache</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>EC2 app cần <em>dynamic feature flags</em> chia sẻ nhiều app</li>
+          <li><em>Poll interval</em> lấy giá trị mới + <em>cache</em> sau khi retrieve</li>
+          <li><em>MOST operationally efficient</em></li>
+          <li>Bẫy: Secrets Manager; DynamoDB+DAX; Parameter Store + SDK tự poll</li>
+        </ul>
+      </div>
+      <div class="a">D — AppConfig + AppConfig Agent trên EC2; app đọc <code>localhost</code> endpoint agent</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — AppConfig trên EC2</div>
+        <pre class="mermaid">flowchart LR
+  AC[AWS AppConfig service] -->|poll interval| AG[AppConfig Agent trên EC2]
+  AG -->|cache local| APP[Application]
+  APP -->|HTTP localhost:2772| AG
+  SM[Secrets Manager] -.->|secrets not flags| X[A]
+  PS[Parameter Store + SDK poll] -.->|app tự cache| Y[C]</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">Agent lo poll + cache — app không implement interval/cache logic</span>
+        <span class="tip">AppConfig ≠ AWS Config (compliance audit resources)</span>
+        <span class="tip">Feature flags → AppConfig; passwords → Secrets Manager</span>
+      </div>
+    </div>
   </div>
 
   <div id="rds" class="tab-panel" role="tabpanel">
     <div class="panel-header"><h2>RDS</h2><span class="badge">5 câu</span></div>
+    <details class="service-topics" open>
+      <summary>Câu hỏi hay ra đề — tra nhanh</summary>
+      <table class="limits-table">
+        <thead><tr><th>Đề hỏi / từ khóa</th><th>Đáp án</th><th>Bẫy</th></tr></thead>
+        <tbody>
+            <tr><td>Backup retention dài hạn</td><td class="ans">Manual snapshot</td><td class="trap">Auto backup max 35 ngày</td></tr>
+            <tr><td>Read scale</td><td class="ans">Read Replica</td><td class="trap">Multi-AZ (HA)</td></tr>
+            <tr><td>HA sync failover</td><td class="ans">Multi-AZ</td><td class="trap">Read Replica async</td></tr>
+            <tr><td>Aurora connection string Lambda</td><td class="ans">Parameter Store SecureString</td><td class="trap">IAM DB auth only</td></tr>
+        </tbody>
+      </table>
+    </details>
     <div class="card">
       <div class="q">Multi-AZ (chọn 2)</div>
       <div class="req">
@@ -2339,7 +2884,27 @@
   </div>
 
   <div id="dynamodb" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>DynamoDB</h2><span class="badge">25 câu</span></div>
+    <div class="panel-header"><h2>DynamoDB</h2><span class="badge">28 câu</span></div>
+    <details class="service-topics" open>
+      <summary>Câu hỏi hay ra đề — tra nhanh</summary>
+      <table class="limits-table">
+        <thead><tr><th>Đề hỏi / từ khóa</th><th>Đáp án</th><th>Bẫy</th></tr></thead>
+        <tbody>
+            <tr><td>Global latency cao</td><td class="ans">Global Tables + eventual read</td><td class="trap">Connection pooling</td></tr>
+            <tr><td>Scan 100GB + filter</td><td class="ans">RCU theo toàn bộ scanned</td><td class="trap">Filter giảm RCU</td></tr>
+            <tr><td>Chọn cột Scan</td><td class="ans">ProjectionExpression</td><td class="trap">FilterExpression</td></tr>
+            <tr><td>Hot partition / skew key</td><td class="ans">Write sharding suffix</td><td class="trap">On-Demand / Auto Scaling</td></tr>
+            <tr><td>Insert throttle</td><td class="ans">Backoff + On-Demand hoặc tăng WCU</td><td class="trap">Tăng RCU</td></tr>
+            <tr><td>GSI read consistency</td><td class="ans">Eventually consistent only</td><td class="trap">Strong read GSI</td></tr>
+            <tr><td>GSI count</td><td class="ans">Max 20 GSI / table</td><td class="trap">LSI max 5</td></tr>
+            <tr><td>Stream latest state spreadsheet</td><td class="ans">NEW_IMAGE + Lambda</td><td class="trap">OLD_IMAGE; DAX subscribe</td></tr>
+            <tr><td>TTL expiresAt qua rồi</td><td class="ans">Item vẫn có thể tồn tại 48h</td><td class="trap">Xóa instant</td></tr>
+            <tr><td>Upsert min IAM</td><td class="ans">GetItem + UpdateItem</td><td class="trap">Thêm PutItem</td></tr>
+            <tr><td>Transact write cost</td><td class="ans">2× WCU</td><td class="trap">BatchWrite partial OK</td></tr>
+            <tr><td>Ảnh lớn user profile</td><td class="ans">S3</td><td class="trap">DynamoDB 400KB limit</td></tr>
+        </tbody>
+      </table>
+    </details>
     <div class="card" style="border-left: 4px solid #0073bb;">
       <div class="q">Luyện tập RCU / WCU (quiz tương tác)</div>
       <div class="a"><a href="quiz/index.html" style="color:#0073bb;font-weight:700;">Mở trang Practice Quiz →</a> · <a href="quiz/dynamodb-rcu-wcu.html" style="color:#0073bb;">RCU/WCU 22 câu</a> · 4 đáp án/câu + giải thích khi chọn</div>
@@ -2621,6 +3186,12 @@
   end</pre>
       </div>
       <span class="tip">LSI: max 5; phải define lúc create table; strong consistent read trên LSI</span>
+      <span class="tip">LSI = cùng PK, đổi SK · GSI = PK/SK mới</span>
+    </div>
+
+    <div class="card">
+      <div class="q">Query — ScanIndexForward (ASC / DESC)</div>
+      <div class="a"><code>ScanIndexForward=true</code> → ASC · <code>false</code> → DESC (chỉ Query có sort key)</div>
     </div>
 
     <div class="card">
@@ -2705,6 +3276,63 @@
       <div class="tips">
         <span class="tip">INSERT chỉ có NewImage; REMOVE chỉ có OldImage — MODIFY mới có cả hai</span>
         <span class="tip">KEYS_ONLY nhẹ nhất — dùng khi Lambda chỉ cần biết key rồi GetItem</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="q">Stream — sync spreadsheet trial users (latest info)</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>DDB table trial users; <em>spreadsheet tự cập nhật</em> khi trial begin/update/finish</li>
+          <li>Đề nhấn <strong>latest information</strong> sau mỗi thay đổi</li>
+          <li>Bẫy: <code>OLD_IMAGE</code>; DAX cluster subscribe Lambda</li>
+        </ul>
+      </div>
+      <div class="a">C — DynamoDB Stream <strong>NEW_IMAGE</strong> + Lambda event source mapping → update spreadsheet</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Latest state → NEW_IMAGE</div>
+        <pre class="mermaid">flowchart LR
+  DDB[(TrialUsers table)] -->|INSERT MODIFY REMOVE| STR[Stream NEW_IMAGE]
+  STR --> L[Lambda]
+  L --> SHEET[Spreadsheet latest row]
+  DAX[DAX cluster] -.->|cache only no change feed| X[A/D sai]
+  OLD[OLD_IMAGE] -.->|state before change| Y[B sai latest]</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">Latest / current state → NEW_IMAGE</span>
+        <span class="tip">Audit "what changed from" → NEW_AND_OLD_IMAGES hoặc OLD_IMAGE</span>
+        <span class="tip">DAX ≠ DynamoDB Streams — không trigger Lambda theo item change</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="q">Streams — failed sales Price &gt; threshold → SNS (ít dev effort)</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>DynamoDB sales + <strong>Streams</strong>; attribute <code>TransactionStatus</code> (failed/pending/completed)</li>
+          <li>Notify khi <em>failed</em> và <code>Price</code> &gt; ngưỡng</li>
+          <li>Đề hỏi: <em>LEAST development effort</em></li>
+          <li>Bẫy C: event source mapping <em>Streams → SNS</em> trực tiếp — không hỗ trợ</li>
+          <li>Bẫy B: filter trong Lambda handler — nhiều code hơn declarative filter</li>
+        </ul>
+      </div>
+      <div class="a">Streams → Lambda + <strong>event filtering</strong> trên mapping → Lambda publish SNS</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Lambda event filtering</div>
+        <pre class="mermaid">flowchart LR
+  T[(DynamoDB table)] --> STR[Streams]
+  STR --> MAP[Event source mapping + FilterCriteria]
+  MAP -->|match failed + Price&gt;X| L[Lambda → SNS]
+  MAP -.->|không match| SKIP[Không invoke Lambda]
+  STR -.x|KHÔNG map trực tiếp| SNS[(SNS)]</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">Lambda event filtering: JSON pattern trên mapping — filter trước khi invoke</span>
+        <span class="tip">Streams consumer hợp lệ: Lambda (và tương tự Kinesis path) — không SNS trực tiếp</span>
+        <span class="tip">CloudWatch alarm ≠ per-record business filter trên stream payload</span>
+        <span class="tip">B vẫn đúng logic nhưng A ít code hơn khi đề nhấn least effort</span>
       </div>
     </div>
 
@@ -2943,7 +3571,22 @@
   </div>
 
   <div id="sqs" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>SQS</h2><span class="badge">9 câu</span></div>
+    <div class="panel-header"><h2>SQS</h2><span class="badge">11 câu</span></div>
+    <details class="service-topics" open>
+      <summary>Câu hỏi hay ra đề — tra nhanh</summary>
+      <table class="limits-table">
+        <thead><tr><th>Đề hỏi / từ khóa</th><th>Đáp án</th><th>Bẫy</th></tr></thead>
+        <tbody>
+            <tr><td>Message > 256 KB</td><td class="ans">Extended Client + S3</td><td class="trap">Tăng quota; gzip</td></tr>
+            <tr><td>Poison message</td><td class="ans">DLQ + maxReceiveCount</td><td class="trap">Long polling</td></tr>
+            <tr><td>Lambda batch partial fail</td><td class="ans">ReportBatchItemFailures</td><td class="trap">Batch size = 1</td></tr>
+            <tr><td>Duplicate trong 1 phút</td><td class="ans">FIFO + deduplication</td><td class="trap">Standard dedup</td></tr>
+            <tr><td>Lambda + SQS timeout</td><td class="ans">Visibility ≥ 6× Lambda timeout</td><td class="trap">Default 30s</td></tr>
+            <tr><td>Black Friday queue scale</td><td class="ans">SQS tự scale — fix consumer</td><td class="trap">Pre-configure queue capacity</td></tr>
+            <tr><td>Lambda DLQ</td><td class="ans">Standard SQS only</td><td class="trap">FIFO DLQ</td></tr>
+        </tbody>
+      </table>
+    </details>
     <div class="card">
       <div class="q">Black Friday volume lớn</div>
       <div class="req">
@@ -3128,6 +3771,16 @@
     </div>
 
     <div class="card">
+      <div class="q">SQS — API ops cheat sheet</div>
+      <div class="a">PurgeQueue (dọn message) · DeleteQueue (xóa queue) · SendMessageBatch · ChangeMessageVisibility · StartMessageMoveTask (DLQ redrive)</div>
+      <div class="tips">
+        <span class="tip">FIFO dedup 5 phút — content-based hoặc MessageDeduplicationId</span>
+        <span class="tip">FIFO ~300 msg/s per group; high throughput + batch ~3.000 msg/s</span>
+        <span class="tip">Visibility max 12h · PurgeQueue max 1 lần/60s</span>
+      </div>
+    </div>
+
+    <div class="card">
       <div class="q">Lambda SQS batch — partial failure, chỉ retry message fail</div>
       <div class="req">
         <div class="req-title">Yêu cầu đề thường gặp</div>
@@ -3156,10 +3809,53 @@
         <span class="tip">Không DeleteMessageBatch thủ công — Lambda integration tự delete message thành công</span>
       </div>
     </div>
+
+    <div class="card">
+      <div class="q">Lambda + SQS Standard → Redshift duplicate (trùng trong 1 phút)</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Bối cảnh: Lambda đọc <em>SQS Standard</em>, enrich qua API, load <em>Redshift</em></li>
+          <li>Throughput tối đa ~1.000 msg/s; dữ liệu <em>trùng</em> trong Redshift</li>
+          <li>Manh mối: message trùng được <em>gửi vào queue trong vòng 1 phút</em></li>
+          <li>Đề hỏi: cách xử lý duplicate ở tầng queue</li>
+          <li>Bẫy C: <em>MessageGroupId + deduplication trên Standard queue</em> — feature không tồn tại</li>
+        </ul>
+      </div>
+      <div class="a">SQS FIFO queue + bật message deduplication</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — FIFO deduplication</div>
+        <pre class="mermaid">flowchart LR
+  P[Producer gửi trùng trong 1 phút] --> FIFO[SQS FIFO + dedup]
+  FIFO -->|chỉ 1 bản| L[Lambda enrich]
+  L --> RS[(Redshift)]
+  STD[SQS Standard] -.->|at-least-once, không dedup| BAD[Duplicate vào Redshift]</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">Standard = at-least-once; MessageGroupId/MessageDeduplicationId chỉ dùng được với FIFO</span>
+        <span class="tip">FIFO dedup window 5 phút — khớp manh mối "trùng trong 1 phút"</span>
+        <span class="tip">FIFO high throughput ~3.000 TPS/queue — đủ 1.000 msg/s</span>
+        <span class="tip">Giảm Lambda concurrency không chặn duplicate; /tmp không chia sẻ giữa các invocation</span>
+      </div>
+    </div>
   </div>
 
   <div id="kinesis" class="tab-panel" role="tabpanel">
     <div class="panel-header"><h2>Kinesis Data Streams / Firehose</h2><span class="badge">13 câu</span></div>
+    <details class="service-topics" open>
+      <summary>Câu hỏi hay ra đề — tra nhanh</summary>
+      <table class="limits-table">
+        <thead><tr><th>Đề hỏi / từ khóa</th><th>Đáp án</th><th>Bẫy</th></tr></thead>
+        <tbody>
+            <tr><td>Chỉ cần S3 data lake</td><td class="ans">Firehose managed</td><td class="trap">Streams + custom consumer</td></tr>
+            <tr><td>Hot shard dù nhiều shard</td><td class="ans">Low-cardinality partition key</td><td class="trap">Thêm shard tổng</td></tr>
+            <tr><td>KCL max workers</td><td class="ans">= số shard</td><td class="trap">2× shard; shard cũ</td></tr>
+            <tr><td>Producer 6 MB/s, 4 shard</td><td class="ans">Resharding split shard</td><td class="trap">EFO (read side)</td></tr>
+            <tr><td>Nhiều consumer lag read</td><td class="ans">Enhanced fan-out EFO</td><td class="trap">Shared 2 MB/s egress</td></tr>
+            <tr><td>Replay sau crash</td><td class="ans">Retention + AT_TIMESTAMP</td><td class="trap">SQS redrive</td></tr>
+        </tbody>
+      </table>
+    </details>
 
     <div class="card">
       <div class="q">Data Streams vs Firehose — chọn service nào</div>
@@ -3481,6 +4177,20 @@
 
   <div id="storage" class="tab-panel" role="tabpanel">
     <div class="panel-header"><h2>EFS / EBS</h2><span class="badge">4 câu</span></div>
+    <details class="service-topics" open>
+      <summary>Câu hỏi hay ra đề — tra nhanh</summary>
+      <table class="limits-table">
+        <thead><tr><th>Đề hỏi / từ khóa</th><th>Đáp án</th><th>Bẫy</th></tr></thead>
+        <tbody>
+            <tr><td>File nhiều EC2 ít access</td><td class="ans">EFS Standard-IA</td><td class="trap">S3 Standard-IA (object)</td></tr>
+            <tr><td>Block 1 EC2</td><td class="ans">EBS</td><td class="trap">EFS</td></tr>
+            <tr><td>gp2 max IOPS size</td><td class="ans">~5.3 TiB (cap 16000)</td><td class="trap">16 TiB</td></tr>
+            <tr><td>io1 200 GiB IOPS</td><td class="ans">200×50 = 10000</td><td class="trap">Linear 200 IOPS</td></tr>
+            <tr><td>EBS encrypted snapshot</td><td class="ans">Encrypted → luôn encrypted</td><td class="trap">Decrypt khi copy</td></tr>
+            <tr><td>EBS gp3 baseline</td><td class="ans">3000 IOPS; 125 MB/s</td><td class="trap">gp2 scale IOPS theo size</td></tr>
+        </tbody>
+      </table>
+    </details>
     <div class="card">
       <div class="q">File storage, hàng trăm EC2, ít truy cập</div>
       <div class="a">EFS Standard-IA</div>
@@ -3518,6 +4228,18 @@
 
   <div id="elasticache" class="tab-panel" role="tabpanel">
     <div class="panel-header"><h2>ElastiCache — Redis / Memcached</h2><span class="badge">10 câu</span></div>
+    <details class="service-topics" open>
+      <summary>Câu hỏi hay ra đề — tra nhanh</summary>
+      <table class="limits-table">
+        <thead><tr><th>Đề hỏi / từ khóa</th><th>Đáp án</th><th>Bẫy</th></tr></thead>
+        <tbody>
+            <tr><td>Sorted set / pub-sub / HA</td><td class="ans">Redis Replication Group</td><td class="trap">Memcached</td></tr>
+            <tr><td>Simple cache scale out</td><td class="ans">Memcached horizontal</td><td class="trap">Redis cluster khi không cần</td></tr>
+            <tr><td>Session persistence</td><td class="ans">Redis Multi-AZ</td><td class="trap">Memcached volatile</td></tr>
+            <tr><td>Giảm DynamoDB read latency</td><td class="ans">DAX</td><td class="trap">Connection pooling RDS-style</td></tr>
+        </tbody>
+      </table>
+    </details>
 
     <div class="card">
       <div class="q">Redis vs Memcached — tổng quan</div>
@@ -3704,6 +4426,16 @@
 
   <div id="vpc" class="tab-panel" role="tabpanel">
     <div class="panel-header"><h2>VPC / Networking</h2><span class="badge">2 câu</span></div>
+    <details class="service-topics" open>
+      <summary>Câu hỏi hay ra đề — tra nhanh</summary>
+      <table class="limits-table">
+        <thead><tr><th>Đề hỏi / từ khóa</th><th>Đáp án</th><th>Bẫy</th></tr></thead>
+        <tbody>
+            <tr><td>Private API Gateway</td><td class="ans">VPC endpoint + Private REST API</td><td class="trap">Public HTTP API</td></tr>
+            <tr><td>Lambda in VPC cold start</td><td class="ans">ENI attach latency</td><td class="trap">Không VPC khi không cần</td></tr>
+        </tbody>
+      </table>
+    </details>
     <div class="card">
       <div class="q">EC2 private subnet → S3 + DynamoDB</div>
       <div class="a">Gateway Endpoints + route table</div>
@@ -3725,7 +4457,24 @@
   </div>
 
   <div id="iam" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>IAM / Security</h2><span class="badge">17 câu</span></div>
+    <div class="panel-header"><h2>IAM / Security</h2><span class="badge">20 câu</span></div>
+    <details class="service-topics" open>
+      <summary>Câu hỏi hay ra đề — tra nhanh</summary>
+      <table class="limits-table">
+        <thead><tr><th>Đề hỏi / từ khóa</th><th>Đáp án</th><th>Bẫy</th></tr></thead>
+        <tbody>
+            <tr><td>Cross-account secret + resource policy</td><td class="ans">Secrets Manager + KMS + resource policy</td><td class="trap">Parameter Store</td></tr>
+            <tr><td>Secrets DR replicate</td><td class="ans">Replication từ primary + KMS region đích</td><td class="trap">Tạo secret đích + KMS nguồn</td></tr>
+            <tr><td>ABAC tag team EC2</td><td class="ans">PrincipalTag + ResourceTag condition</td><td class="trap">Permission boundary</td></tr>
+            <tr><td>Mobile → DynamoDB trực tiếp</td><td class="ans">User Pool JWT → Identity Pool creds</td><td class="trap">JWT gọi DDB trực tiếp</td></tr>
+            <tr><td>KMS throttle app encrypt</td><td class="ans">Encryption SDK data key cache</td><td class="trap">S3 bucket-level key cho app</td></tr>
+            <tr><td>KMS Encrypt file MB</td><td class="ans">Envelope + data key</td><td class="trap">Encrypt API 4KB chunks</td></tr>
+            <tr><td>Parameter Store vs Secrets</td><td class="ans">PS 4KB/8KB; không resource policy</td><td class="trap">SM 64KB + resource policy + rotation</td></tr>
+            <tr><td>Pre sign-up chặn domain</td><td class="ans">Pre sign-up Lambda trigger</td><td class="trap">Pre-authentication</td></tr>
+            <tr><td>ID token email + groups</td><td class="ans">ID token</td><td class="trap">Access token</td></tr>
+        </tbody>
+      </table>
+    </details>
     <div class="card">
       <div class="q">EC2 chat API token — cross-account + resource policy</div>
       <div class="req">
@@ -3749,6 +4498,42 @@
   DDB[DynamoDB] -.->|không resource policy| Z[Sai]</pre>
       </div>
       <span class="tip">Đề có "resource-based policy" + cross-account secret/token → Secrets Manager; Parameter Store chỉ IAM identity policy</span>
+    </div>
+
+    <div class="card">
+      <div class="q">Secrets Manager — replicate us-west-1 → us-east-1 (DR)</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Secrets lưu ở <em>primary region</em> (vd us-west-1); cần <em>redundancy / DR</em> ở region khác</li>
+          <li>Đề hỏi cách replicate Secrets Manager sang region đích</li>
+          <li>Bẫy: tạo secret mới ở region đích; KMS key region nguồn; S3 replication; rule chỉ chạy lúc rotation</li>
+        </ul>
+      </div>
+      <div class="a">A — Secret replication trên secret primary; thêm us-east-1; KMS CMK ở us-east-1</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Multi-Region secret replication</div>
+        <pre class="mermaid">flowchart LR
+  subgraph WEST[us-west-1 primary]
+    S1[Secret primary]
+    K1[KMS key us-west-1]
+    S1 --> K1
+  end
+  subgraph EAST[us-east-1 replica]
+    S2[Replica secret]
+    K2[KMS key us-east-1]
+    S2 --> K2
+  end
+  S1 -->|Secrets Manager replication| S2
+  APP1[App us-west-1] --> S1
+  APP2[App us-east-1 DR] --> S2
+  S3[S3 bucket] -.->|KHÔNG dùng cho SM DR| X[Sai D]</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">Cấu hình replication từ secret primary — add replica region</span>
+        <span class="tip">Mỗi replica dùng KMS key ở region đích — không KMS region nguồn</span>
+        <span class="tip">Sync tự động khi secret value đổi — không cần rule riêng gắn rotation</span>
+      </div>
     </div>
 
     <div class="card">
@@ -3949,6 +4734,37 @@
     </div>
 
     <div class="card">
+      <div class="q">EC2 — instance role Deny S3 + credentials file admin keys</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>EC2 gắn IAM role có <em>explicit Deny</em> mọi S3 API action</li>
+          <li>Trên instance còn có <code>~/.aws/credentials</code> với access key/secret key <em>full admin</em></li>
+          <li>App dùng default credential provider chain — hỏi quyền S3 thực tế</li>
+          <li>Bẫy: nghĩ Deny trên role chặn hết dù có admin keys trong file</li>
+        </ul>
+      </div>
+      <div class="a">A — EC2 thực hiện được mọi action trên mọi S3 bucket</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Credential provider chain trên EC2</div>
+        <pre class="mermaid">flowchart TD
+  APP[App / AWS CLI / SDK] --> CHAIN[Default credential provider chain]
+  CHAIN --> ENV[1. Environment variables]
+  ENV -->|không có| FILE[2. Shared credentials file]
+  FILE -->|có admin keys| USE[✓ Dùng admin identity]
+  FILE -->|không có| IMDS[3. Instance profile IMDS]
+  IMDS --> ROLE[Role policy Deny S3]
+  USE --> S3FULL[Full S3 access — admin keys]
+  ROLE --> S3DENY[Không S3 — chỉ khi dùng role creds]</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">Credentials file đứng TRƯỚC instance profile trong default chain</span>
+        <span class="tip">Explicit Deny chỉ trong cùng một IAM principal — admin keys ≠ instance role</span>
+        <span class="tip">Best practice EC2: chỉ dùng instance role, không hardcode access keys</span>
+      </div>
+    </div>
+
+    <div class="card">
       <div class="q">EC2 video editing → S3</div>
       <div class="a">Instance role, trust ec2.amazonaws.com</div>
     </div>
@@ -4115,6 +4931,33 @@
     </div>
 
     <div class="card">
+      <div class="q">KMS — xóa key ngay lập tức (imported key material)</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Encryption keys phải <strong>xóa/vô hiệu ngay</strong> khi không cần</li>
+          <li><em>Highly available</em> + <em>không quản lý compute infra</em></li>
+          <li>Bẫy: KMS managed keys; ScheduleKeyDeletion "immediate"; CloudHSM; delete key material CMK thường</li>
+        </ul>
+      </div>
+      <div class="a">B — CMK + <strong>imported key material</strong> → <code>DeleteImportedKeyMaterial</code> khi không cần</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Xóa key KMS: immediate vs waiting period</div>
+        <pre class="mermaid">flowchart TD
+  IMP[CMK + imported key material] --> DEL[DeleteImportedKeyMaterial]
+  DEL --> NOW[Key unusable NGAY]
+  GEN[CMK KMS-generated material] --> SCH[ScheduleKeyDeletion]
+  SCH --> WAIT[Waiting period 7-30 ngày]
+  AWS[AWS managed keys] --> NO[Customer không schedule delete]</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">"Immediate deletion" trong đề ≠ ScheduleKeyDeletion — luôn có waiting period</span>
+        <span class="tip">DeleteImportedKeyMaterial = key metadata còn nhưng không encrypt/decrypt được</span>
+        <span class="tip">CloudHSM custom key store = thêm HSM infra — sai "no manual compute"</span>
+      </div>
+    </div>
+
+    <div class="card">
       <div class="q">Secrets Manager — app break sau rotation password RDS</div>
       <div class="req">
         <div class="req-title">Yêu cầu đề thường gặp</div>
@@ -4149,7 +4992,24 @@
   </div>
 
   <div id="cicd" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>CI/CD — CodePipeline / CodeBuild / CodeDeploy</h2><span class="badge">23 câu</span></div>
+    <div class="panel-header"><h2>CI/CD — CodePipeline / CodeBuild / CodeDeploy</h2><span class="badge">28 câu</span></div>
+    <details class="service-topics" open>
+      <summary>Câu hỏi hay ra đề — tra nhanh</summary>
+      <table class="limits-table">
+        <thead><tr><th>Đề hỏi / từ khóa</th><th>Đáp án</th><th>Bẫy</th></tr></thead>
+        <tbody>
+            <tr><td>buildspec phases Q73</td><td class="ans">install → pre_build → build → post_build</td><td class="trap">source/deploy phase</td></tr>
+            <tr><td>Parallel unit+integration Q71</td><td class="ans">Batch builds + build graph</td><td class="trap">CODEBUILD_PARALLEL</td></tr>
+            <tr><td>Pass data stages Q75</td><td class="ans">S3 artifacts imagedefinitions.json</td><td class="trap">Env var shared; SSM</td></tr>
+            <tr><td>ECR push authorization</td><td class="ans">CodeBuild IAM role</td><td class="trap">Security Group</td></tr>
+            <tr><td>Local test bundle S3</td><td class="ans">codedeploy-local</td><td class="trap">CodePipeline cloud</td></tr>
+            <tr><td>SAM incremental dev</td><td class="ans">sam sync</td><td class="trap">sam deploy mỗi commit</td></tr>
+            <tr><td>SAM gradual deploy</td><td class="ans">DeploymentPreference + Canary + Hooks</td><td class="trap">EventInvokeConfig</td></tr>
+            <tr><td>CodeArtifact Maven cache</td><td class="ans">Upstream repo hiện có</td><td class="trap">Repo/domain mới</td></tr>
+            <tr><td>Auto rollback Q77</td><td class="ans">DG + CloudWatch alarm</td><td class="trap">Pipeline monitor alarm</td></tr>
+        </tbody>
+      </table>
+    </details>
 
     <div class="card">
       <div class="q">3 dịch vụ CI/CD — vai trò &amp; file config</div>
@@ -4370,6 +5230,34 @@
     </div>
 
     <div class="card">
+      <div class="q">CFN + CodeDeploy ECS — canary % user trước full rollout</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>CloudFormation template quản <em>ECS deploy qua CodeDeploy</em></li>
+          <li>Version mới tới <em>% user trước</em>, sau đó mới full rollout</li>
+          <li>Bẫy: stack mới + DNS; nested stack; CFN update trực tiếp không CodeDeploy hook</li>
+        </ul>
+      </div>
+      <div class="a">A — <code>Transform</code> + <code>AWS::CodeDeploy::BlueGreen</code> hook trong template CFN</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — CFN BlueGreen hook → CodeDeploy ECS</div>
+        <pre class="mermaid">flowchart LR
+  CFN[CloudFormation stack update] --> HOOK[AWS::CodeDeploy::BlueGreen hook]
+  HOOK --> CD[CodeDeploy deployment]
+  CD --> TG1[Blue task set v1]
+  CD --> TG2[Green task set v2]
+  TG2 -->|Canary 10% → 50% → 100%| ALB[ALB traffic shift]
+  ALB --> USERS[Users]</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">BlueGreen hook = CFN orchestrate CodeDeploy canary/linear trên ECS</span>
+        <span class="tip">Canary10Percent5Minutes — shift traffic theo % có cấu hình</span>
+        <span class="tip">Stack update thuần (D) = thay task trực tiếp, không gradual % traffic</span>
+      </div>
+    </div>
+
+    <div class="card">
       <div class="q">Deployment Groups vs Hooks</div>
       <div class="req">
         <div class="req-title">Yêu cầu đề thường gặp — chat marathon</div>
@@ -4483,6 +5371,17 @@
     </div>
 
     <div class="card">
+      <div class="q">SAM CLI cheat sheet — local + multi-env</div>
+      <div class="a"><code>sam local invoke</code> · <code>sam local generate-event</code> · <code>sam local start-api</code> · <code>sam sync</code> · <code>sam deploy --config-env dev</code></div>
+      <div class="tips">
+        <span class="tip">generate-event = sample events (S3, API GW, SNS…)</span>
+        <span class="tip">start-api = test API Gateway local</span>
+        <span class="tip">samconfig.toml: [dev.deploy.parameters] + --config-env dev</span>
+        <span class="tip">sam sync = deploy incremental chỉ thay đổi mới</span>
+      </div>
+    </div>
+
+    <div class="card">
       <div class="q">Q75 — pass data giữa CodePipeline stages (ECS + ECR)</div>
       <div class="req">
         <div class="req-title">Yêu cầu đề thường gặp</div>
@@ -4536,10 +5435,92 @@
         <span class="tip">EventInvokeConfig ≠ DeploymentPreference — đừng nhầm Destinations với deploy canary</span>
       </div>
     </div>
+
+    <div class="card">
+      <div class="q">Test deployment package local — bundle trên S3, ít config nhất</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>App sẽ deploy AWS; developer cần <strong>test/debug trên máy local</strong></li>
+          <li>Code đã <em>packaged</em> và lưu trên <strong>S3</strong></li>
+          <li>Đề hỏi: <em>LEAST amount of configuration</em></li>
+          <li>Bẫy A: tạo CodeDeploy Application + Deployment Group + start deployment — nhiều bước AWS</li>
+          <li>Bẫy D: CodePipeline + CodeBuild test — chạy trên cloud, không local</li>
+        </ul>
+      </div>
+      <div class="a">Cài <strong>CodeDeploy agent</strong> local → <code>codedeploy-local</code> + <code>--bundle-location</code> trỏ S3</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — codedeploy-local</div>
+        <pre class="mermaid">flowchart LR
+  S3[(S3 deployment bundle)] --> CDL[codedeploy-local trên máy dev]
+  CDL --> AG[CodeDeploy agent local]
+  AG --> HOOKS[Chạy appspec hooks / validate deploy]
+  CP[CodePipeline + CodeBuild] -.->|cloud không phải local| X[Không đáp án least config]</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">codedeploy-local mô phỏng lifecycle deploy mà không cần EC2 hay full pipeline</span>
+        <span class="tip">--bundle-location s3://bucket/key hoặc path local</span>
+        <span class="tip">CodeBuild Agent local = debug buildspec; codedeploy-local = debug appspec/deploy package</span>
+        <span class="tip">CodeArtifact = quản lý package dependency — không phải local test bundle S3</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="q">CI/CD — chọn service theo từ khóa</div>
+      <div class="a">Local deploy test → codedeploy-local · Cloud test → CodeBuild · Package/dependency → CodeArtifact</div>
+      <div class="tips">
+        <span class="tip">codedeploy-local + bundle S3 = test/debug deploy package local</span>
+        <span class="tip">Unit/integration test trong pipeline → CodeBuild</span>
+        <span class="tip">Maven/npm cache upstream → CodeArtifact upstream repo</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="q">CodeArtifact — cache Maven Central, minimum pipeline change</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Build pipeline đã publish vào <em>CodeArtifact repo</em> sẵn có</li>
+          <li>Cần <em>cache dependency</em> từ Maven Central (public repository)</li>
+          <li><em>Minimum changes</em> to build pipeline</li>
+          <li>Bẫy: tạo repo/domain mới; resource policy allow fetch public</li>
+        </ul>
+      </div>
+      <div class="a">D — Associate <strong>upstream repository</strong> (Maven Central) với CodeArtifact repo hiện tại</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — CodeArtifact upstream cache</div>
+        <pre class="mermaid">flowchart LR
+  BUILD[CodeBuild / Maven] -->|cùng repo URL| CA[CodeArtifact repo hiện tại]
+  CA -->|package có sẵn| CACHE[(Cached artifact)]
+  CA -->|chưa có| UP[Upstream Maven Central]
+  UP -->|fetch + cache| CACHE
+  NEW[Repo/domain mới] -.->|đổi endpoint pipeline| X[Không minimum change]</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">Upstream = proxy/cache public repo — pipeline không đổi URL</span>
+        <span class="tip">Resource policy = IAM access control — không cấu hình upstream fetch</span>
+      </div>
+    </div>
   </div>
 
   <div id="cloudformation" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>CloudFormation</h2><span class="badge">16 câu</span></div>
+    <div class="panel-header"><h2>CloudFormation</h2><span class="badge">18 câu</span></div>
+    <details class="service-topics" open>
+      <summary>Câu hỏi hay ra đề — tra nhanh</summary>
+      <table class="limits-table">
+        <thead><tr><th>Đề hỏi / từ khóa</th><th>Đáp án</th><th>Bẫy</th></tr></thead>
+        <tbody>
+            <tr><td>RDS endpoint output</td><td class="ans">!GetAtt Endpoint.Address</td><td class="trap">!Ref (trả ID)</td></tr>
+            <tr><td>Cross-stack VPC ID</td><td class="ans">Export / ImportValue</td><td class="trap">Hardcode</td></tr>
+            <tr><td>Giữ resource khi fail CLI</td><td class="ans">--disable-rollback</td><td class="trap">termination-protection</td></tr>
+            <tr><td>Đổi Logical ID</td><td class="ans">Remove + Add (DB có thể xóa)</td><td class="trap">Rename in-place</td></tr>
+            <tr><td>SAM ít resource, stack nhiều</td><td class="ans">SAM transform expand resources</td><td class="trap">Nested stack mỗi fn</td></tr>
+            <tr><td>Lambda code trên S3 least effort</td><td class="ans">Code.S3Bucket + S3Key</td><td class="trap">ZipFile inline</td></tr>
+            <tr><td>Multi-region CFN pipeline</td><td class="ans">StackSets</td><td class="trap">CodeBuild per region</td></tr>
+            <tr><td>CFN ECS canary %</td><td class="ans">BlueGreen hook</td><td class="trap">Stack update trực tiếp</td></tr>
+        </tbody>
+      </table>
+    </details>
 
     <div class="card">
       <div class="q">RDS endpoint trong Outputs</div>
@@ -4603,6 +5584,35 @@
   SB[Stack B] -->|ImportValue VpcId| EX</pre>
       </div>
       <span class="tip">Không ImportValue từ stack chưa deploy; Export phải unique trong region</span>
+    </div>
+
+    <div class="card">
+      <div class="q">CodePipeline + CFN — primary + DR region (StackSets)</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>CodePipeline có sẵn; <em>1 account</em>, không Organizations</li>
+          <li>Deploy/test CFN template ở <strong>primary region</strong> + <strong>DR region</strong></li>
+          <li><em>MOST operational efficiency</em> — cùng template, nhiều region</li>
+          <li>Bẫy: Snyk; CodeBuild deploy từng region; CodeDeploy per region</li>
+        </ul>
+      </div>
+      <div class="a">C — CodePipeline + <strong>CloudFormation StackSets</strong> deploy across both regions</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — StackSets multi-region</div>
+        <pre class="mermaid">flowchart TD
+  CP[CodePipeline] --> CFN[CloudFormation template]
+  CFN --> SS[StackSet]
+  SS --> R1[Stack primary region]
+  SS --> R2[Stack DR region]
+  CB[CodeBuild per region] -.->|manual, kém hiệu quả| X[B]
+  CD[CodeDeploy] -.->|app deploy, không CFN| Y[D]</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">StackSets = 1 operation → stacks đồng bộ nhiều region</span>
+        <span class="tip">Self-managed StackSets OK trong single account không cần Organizations</span>
+        <span class="tip">Snyk = security scan — không deploy CFN</span>
+      </div>
     </div>
 
     <div class="card">
@@ -4679,6 +5689,12 @@
       </div>
       <div class="a">Tạo Change Set → review Add/Modify/Remove → Execute Change Set</div>
       <span class="tip">Change Set không tự apply — phải execute sau khi approve</span>
+    </div>
+
+    <div class="card">
+      <div class="q">CFN template — Type vs Properties</div>
+      <div class="a"><strong>Type</strong> = loại resource (AWS::S3::Bucket…) · <strong>Properties</strong> = cấu hình chi tiết resource</div>
+      <span class="tip">Change Set = preview thay đổi stack trước Execute</span>
     </div>
 
     <div class="card">
@@ -4947,6 +5963,18 @@
 
   <div id="other" class="tab-panel" role="tabpanel">
     <div class="panel-header"><h2>Step Functions / CloudTrail</h2><span class="badge">4 câu</span></div>
+    <details class="service-topics" open>
+      <summary>Câu hỏi hay ra đề — tra nhanh</summary>
+      <table class="limits-table">
+        <thead><tr><th>Đề hỏi / từ khóa</th><th>Đáp án</th><th>Bẫy</th></tr></thead>
+        <tbody>
+            <tr><td>Human approval workflow</td><td class="ans">Step Functions Standard (max 1 năm)</td><td class="trap">Express 5 phút</td></tr>
+            <tr><td>SNS / EventBridge payload</td><td class="ans">256 KB max</td><td class="trap">Lớn → S3 pointer</td></tr>
+            <tr><td>High volume background trace</td><td class="ans">X-Ray sampling — sample thấp background</td><td class="trap">100% all traffic</td></tr>
+            <tr><td>Audit API management calls</td><td class="ans">CloudTrail</td><td class="trap">Execution logging API GW</td></tr>
+        </tbody>
+      </table>
+    </details>
     <div class="card">
       <div class="q">Không thấy user tạo EBS trong CloudTrail</div>
       <div class="a">Volume tạo lúc RunInstances</div>
@@ -5018,7 +6046,18 @@
   </div>
 
   <div id="xray" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>X-Ray</h2><span class="badge">3 câu</span></div>
+    <div class="panel-header"><h2>X-Ray</h2><span class="badge">5 câu</span></div>
+    <details class="service-topics" open>
+      <summary>Câu hỏi hay ra đề — tra nhanh</summary>
+      <table class="limits-table">
+        <thead><tr><th>Đề hỏi / từ khóa</th><th>Đáp án</th><th>Bẫy</th></tr></thead>
+        <tbody>
+            <tr><td>ECS Fargate tracing</td><td class="ans">Sidecar X-Ray daemon</td><td class="trap">Daemon Set</td></tr>
+            <tr><td>100% user txn, sample background</td><td class="ans">Sampling rules — user 100%, bg thấp</td><td class="trap">Sample all 100%</td></tr>
+            <tr><td>Trace Lambda + downstream</td><td class="ans">X-Ray SDK active tracing + subsegments</td><td class="trap">Chỉ CW Logs</td></tr>
+        </tbody>
+      </table>
+    </details>
     <div class="card">
       <div class="q">SDK tìm daemon trên ECS</div>
       <div class="req">
@@ -5083,10 +6122,59 @@
       </div>
       <span class="tip">Active tracing ≠ auto subsegment mọi downstream. ECS/EC2 cần daemon; Lambda không cần daemon layer.</span>
     </div>
+
+    <div class="card">
+      <div class="q">Custom sampling — user transactions vs background high-volume</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Serverless + X-Ray; <em>user interactions/transactions</em> quan trọng, <strong>volume thấp</strong></li>
+          <li><em>Background</em> (health check, polling) <strong>volume cao</strong>, read-only, ít quan trọng</li>
+          <li>Default sampling chung không đủ — cần rule theo loại request</li>
+          <li>Bẫy: sample background <em>cao</em>; disable sampling cho background; sample thấp user transactions</li>
+        </ul>
+      </div>
+      <div class="a">C — Disable sampling (trace 100%) cho user/transaction; sample background read-only ở rate <strong>thấp hơn</strong></div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — X-Ray custom sampling rules</div>
+        <pre class="mermaid">flowchart TD
+  REQ[Incoming request] --> RULE{Custom sampling rule}
+  RULE -->|path /api/checkout user txn| R1[Rule 1: fixed rate 100%]
+  RULE -->|/health /poll background| R2[Rule 2: low fixed rate vd 1%]
+  R1 --> TRACE1[Trace mọi giao dịch quan trọng]
+  R2 --> TRACE2[Chỉ trace một phần nhỏ background]
+  DEF[Default rule 1rps + 5%] -.->|không dùng chung| X[Không đủ phân biệt]</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">Quan trọng + ít request → trace 100% (disable sampling cho rule đó)</span>
+        <span class="tip">Ít quan trọng + nhiều request → sampling rate THẤP để giảm cost/noise</span>
+        <span class="tip">"Higher rate" background = lãng phí; "Lower rate" user txn = bỏ sót giao dịch</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="q">Annotations vs Sampling vs Filtering</div>
+      <div class="a">Annotations = indexed KV → filter expressions · Sampling = ghi trace nào · Filtering = search traces đã ghi</div>
+      <div class="tips">
+        <span class="tip">Metadata không indexed — debug context, không search</span>
+        <span class="tip">Tìm trace theo userId/orderId → annotations + filter expression</span>
+      </div>
+    </div>
   </div>
 
   <div id="arch" class="tab-panel" role="tabpanel">
     <div class="panel-header"><h2>Kiến trúc tổng hợp</h2><span class="badge">2 câu</span></div>
+    <details class="service-topics" open>
+      <summary>Câu hỏi hay ra đề — tra nhanh</summary>
+      <table class="limits-table">
+        <thead><tr><th>Đề hỏi / từ khóa</th><th>Đáp án</th><th>Bẫy</th></tr></thead>
+        <tbody>
+            <tr><td>Idempotency API spike</td><td class="ans">DynamoDB store unique request ID</td><td class="trap">Memcached; RDS</td></tr>
+            <tr><td>Event-driven decouple</td><td class="ans">SQS / EventBridge</td><td class="trap">Sync invoke chain</td></tr>
+            <tr><td>Real-time fan-out nhiều consumer</td><td class="ans">Kinesis / SNS</td><td class="trap">SQS single consumer delete</td></tr>
+        </tbody>
+      </table>
+    </details>
     <div class="card">
       <div class="q">Monolith → HA + scale (SMS API)</div>
       <div class="a">API Gateway + Lambda HOẶC ALB + ECS</div>
@@ -5119,6 +6207,191 @@
       </div>
       <span class="tip">User Pool = accounts; Identity Pool = temp AWS creds — không dùng Identity Pool để "manage accounts"</span>
     </div>
+  </div>
+
+  <div id="limits" class="tab-panel" role="tabpanel">
+    <div class="panel-header"><h2>Giới hạn service — cheat sheet DVA</h2><span class="badge">hay ra đề</span></div>
+    <p class="limits-note" style="margin:0 0 1rem;">Các con số <strong>hard limit</strong> (không tăng quota) thường là bẫy đề. Message/payload lớn → pattern Extended Client + S3 hoặc envelope encryption.</p>
+<div class="limits-wrap">
+
+      <div class="limits-section">
+        <h3>API Gateway</h3>
+        <table class="limits-table">
+          <thead><tr><th>Tham số</th><th>Giới hạn</th><th>Ghi chú exam</th></tr></thead>
+          <tbody>
+            <tr><td>Integration timeout</td><td class="hard">max 29 giây</td><td>Lambda timeout 15 phút nhưng API GW sync ≤29s → 504</td></tr>
+            <tr><td>Payload REST/HTTP</td><td>10 MB</td><td>Khác Lambda async event 256 KB</td></tr>
+            <tr><td>WebSocket message</td><td>128 KB / frame</td><td>Chỉ REQUEST authorizer (không token-based)</td></tr>
+            <tr><td>Authorizer cache TTL</td><td>0 – 3600 giây</td><td>Claim/token cũ → deny cũ (Q46 Cognito)</td></tr>
+            <tr><td>HTTP errors</td><td>503 / 502 / 504</td><td>No backend / bad response / timeout</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="limits-section">
+        <h3>SQS</h3>
+        <table class="limits-table">
+          <thead><tr><th>Tham số</th><th>Giới hạn</th><th>Ghi chú exam</th></tr></thead>
+          <tbody>
+            <tr><td>Message size</td><td class="hard">256 KB</td><td>Extended Client + S3</td></tr>
+            <tr><td>Batch receive/send</td><td>10 messages/request</td><td>Mỗi message ≤ 256 KB</td></tr>
+            <tr><td>Retention</td><td>default 4 ngày; max 14 ngày</td><td>Khác visibility timeout</td></tr>
+            <tr><td>Visibility timeout</td><td>default 30s; max 12 giờ</td><td>Lambda+SQS ≥ 6× Lambda timeout</td></tr>
+            <tr><td>Delay</td><td>0 – 15 phút</td><td></td></tr>
+            <tr><td>Long polling</td><td>1 – 20 giây</td><td></td></tr>
+            <tr><td>PurgeQueue</td><td>1 lần / 60s / queue</td><td></td></tr>
+            <tr><td>FIFO dedup</td><td>5 phút</td><td>Content-based hoặc MessageDeduplicationId</td></tr>
+            <tr><td>FIFO throughput</td><td>~300 msg/s/group; high ~3.000 TPS</td><td></td></tr>
+            <tr><td>Lambda DLQ target</td><td>Standard only</td><td>Không FIFO DLQ</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="limits-section">
+        <h3>SNS / EventBridge</h3>
+        <table class="limits-table">
+          <thead><tr><th>Tham số</th><th>Giới hạn</th><th>Ghi chú exam</th></tr></thead>
+          <tbody>
+            <tr><td>SNS message</td><td class="hard">256 KB</td><td>Lớn hơn → S3 + publish pointer</td></tr>
+            <tr><td>EventBridge event</td><td class="hard">256 KB</td><td>Giống pattern SQS/Lambda async</td></tr>
+            <tr><td>Fan-out nhiều subscriber</td><td>SNS topic</td><td>SQS = 1 consumer xóa message</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="limits-section">
+        <h3>DynamoDB</h3>
+        <table class="limits-table">
+          <thead><tr><th>Tham số</th><th>Giới hạn</th><th>Ghi chú exam</th></tr></thead>
+          <tbody>
+            <tr><td>Item size</td><td class="hard">400 KB</td><td>Ảnh/file → S3</td></tr>
+            <tr><td>BatchGet</td><td>≤ 100 items; ≤ 16 MB</td><td></td></tr>
+            <tr><td>BatchWrite</td><td>≤ 25 items; ≤ 16 MB</td><td></td></tr>
+            <tr><td>TransactWrite/Get</td><td>≤ 25 items; ≤ 4 MB</td><td>Write 2× WCU</td></tr>
+            <tr><td>LSI</td><td>max 5 / table</td><td>Strong read; tạo lúc create table</td></tr>
+            <tr><td>GSI</td><td>max 20 / table</td><td>Eventual consistent only; RCU/WCU riêng</td></tr>
+            <tr><td>WCU / RCU</td><td>ceil(KB/1) · ceil(KB/4) strong</td><td>Eventual = strong ÷ 2</td></tr>
+            <tr><td>Hot partition</td><td>~1.000 WCU/s / partition</td><td>Write sharding suffix</td></tr>
+            <tr><td>TTL delete</td><td>async, tới 48 giờ</td><td>Không xóa instant</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="limits-section">
+        <h3>Lambda</h3>
+        <table class="limits-table">
+          <thead><tr><th>Tham số</th><th>Giới hạn</th><th>Ghi chú exam</th></tr></thead>
+          <tbody>
+            <tr><td>Memory</td><td>128 MB – 10 GB</td><td>CPU scale theo memory</td></tr>
+            <tr><td>Timeout</td><td>max 15 phút (900s)</td><td>API GW sync vẫn cap 29s</td></tr>
+            <tr><td>Direct upload zip</td><td class="hard">~50 MB zipped</td><td>RequestEntityTooLargeException</td></tr>
+            <tr><td>Deploy từ S3</td><td>~250 MB unzipped</td><td>Code + layers trong cap này</td></tr>
+            <tr><td>Layers</td><td class="hard">max 5 / function</td><td>Code + layers unzipped ≤ 250 MB</td></tr>
+            <tr><td>/tmp ephemeral</td><td>default 512 MB; max 10 GB</td><td>Scratch runtime; không durable</td></tr>
+            <tr><td>Container image</td><td>~10 GB</td><td>ECR</td></tr>
+            <tr><td>Env variables</td><td>~4 KB tổng</td><td>Secret lớn → Secrets Manager</td></tr>
+            <tr><td>Sync payload (API GW)</td><td>6 MB req/resp</td><td></td></tr>
+            <tr><td>Async event</td><td>256 KB</td><td>SQS/SNS/EventBridge</td></tr>
+            <tr><td>DLQ</td><td>Standard SQS only</td><td>Không FIFO</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="limits-section">
+        <h3>S3</h3>
+        <table class="limits-table">
+          <thead><tr><th>Tham số</th><th>Giới hạn</th><th>Ghi chú exam</th></tr></thead>
+          <tbody>
+            <tr><td>Single PUT</td><td>max 5 GB</td><td>Lớn hơn → multipart upload</td></tr>
+            <tr><td>Object size</td><td>max 5 TB</td><td></td></tr>
+            <tr><td>Throughput / prefix</td><td>~3.500 PUT/s; ~5.500 GET/s</td><td>Phân tán key prefix</td></tr>
+            <tr><td>Standard-IA / One Zone-IA</td><td>min 30 ngày</td><td>+ retrieval fee</td></tr>
+            <tr><td>Pre-signed URL</td><td>Expiry tùy cấu hình</td><td>Upload tạm cross-account</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="limits-section">
+        <h3>CloudFront</h3>
+        <table class="limits-table">
+          <thead><tr><th>Tham số</th><th>Giới hạn</th><th>Ghi chú exam</th></tr></thead>
+          <tbody>
+            <tr><td>CloudFront Function</td><td>viewer request/response only</td><td>Nhẹ, &lt;1 ms — không origin request</td></tr>
+            <tr><td>Lambda@Edge</td><td>origin request/response</td><td>Resize ảnh, route origin, auth origin</td></tr>
+            <tr><td>Origin Group failover</td><td>1 primary + 1 secondary</td><td>GET/HEAD/OPTIONS; mỗi request thử primary</td></tr>
+            <tr><td>Cache key query string</td><td>Cache policy whitelist</td><td>?lang= sai → whitelist lang</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="limits-section">
+        <h3>Kinesis / Firehose</h3>
+        <table class="limits-table">
+          <thead><tr><th>Tham số</th><th>Giới hạn</th><th>Ghi chú exam</th></tr></thead>
+          <tbody>
+            <tr><td>Streams record</td><td class="hard">1 MB</td><td></td></tr>
+            <tr><td>Firehose record</td><td>1.000 KB</td><td></td></tr>
+            <tr><td>Shard ingest / egress</td><td>1 MB/s in · 2 MB/s out</td><td>Hot shard ≠ thiếu shard tổng</td></tr>
+            <tr><td>Retention</td><td>24h default; max 365 ngày</td><td>AT_TIMESTAMP replay</td></tr>
+            <tr><td>PutRecords</td><td>500 records; 5 MB/call</td><td></td></tr>
+            <tr><td>KCL workers</td><td>= số shard</td><td>1 shard = 1 lease</td></tr>
+            <tr><td>Firehose buffer</td><td>1–128 MB hoặc 60–900s</td><td>Lambda transform trước delivery</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="limits-section">
+        <h3>Elastic Beanstalk</h3>
+        <table class="limits-table">
+          <thead><tr><th>Tham số</th><th>Giới hạn / pattern</th><th>Ghi chú exam</th></tr></thead>
+          <tbody>
+            <tr><td>Application versions</td><td>max 1.000</td><td>MaxCount / MaxAge lifecycle</td></tr>
+            <tr><td>Deploy policies</td><td>5 loại</td><td>All at once · Rolling · Rolling+additional · Immutable · Traffic splitting</td></tr>
+            <tr><td>Custom script instance</td><td>.ebextensions</td><td>commands (trước platform) · container_commands (trước app)</td></tr>
+            <tr><td>Rollback bug</td><td>Deploy lại app version cũ</td><td>Không xóa environment</td></tr>
+            <tr><td>CodeDeploy hooks</td><td>ValidateService…</td><td>Thuộc CodeDeploy appspec — không phải EB mặc định</td></tr>
+            <tr><td>T-series burst credit mất</td><td>Immutable / Traffic splitting</td><td>Terminate fleet cũ → credit mất</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="limits-section">
+        <h3>Storage (EBS / EFS) · RDS · IAM secrets</h3>
+        <table class="limits-table">
+          <thead><tr><th>Service</th><th>Giới hạn</th><th>Ghi chú exam</th></tr></thead>
+          <tbody>
+            <tr><td>EBS gp2</td><td>3 IOPS/GiB; max 16.000</td><td>Cap ~5,3 TiB</td></tr>
+            <tr><td>EBS gp3</td><td>3.000 IOPS baseline</td><td>125 MB/s baseline</td></tr>
+            <tr><td>EBS io1</td><td>50 IOPS/GiB</td><td>200 GiB → 10.000 IOPS</td></tr>
+            <tr><td>EFS</td><td>File NFS nhiều EC2</td><td>Standard-IA = ít truy cập; ≠ S3 object</td></tr>
+            <tr><td>RDS auto backup</td><td>max 35 ngày</td><td>Long-term → manual snapshot</td></tr>
+            <tr><td>Parameter Store</td><td>4 KB (standard); 8 KB (advanced)</td><td>Không resource policy cross-account</td></tr>
+            <tr><td>Secrets Manager</td><td>~64 KB / secret</td><td>Resource policy + rotation + replicate</td></tr>
+            <tr><td>KMS Encrypt API</td><td class="hard">~4 KB</td><td>File lớn → Encryption SDK</td></tr>
+            <tr><td>ElastiCache Redis value</td><td>max 512 MB / key</td><td>Memcached ~1 MB / item</td></tr>
+            <tr><td>Step Functions Standard</td><td>max 1 năm</td><td>Human approval</td></tr>
+            <tr><td>Step Functions Express</td><td>max 5 phút</td><td>Không 180 ngày</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="limits-section">
+        <h3>ECS / CI/CD (hay nhầm)</h3>
+        <table class="limits-table">
+          <thead><tr><th>Tham số</th><th>Giới hạn / pattern</th><th>Ghi chú exam</th></tr></thead>
+          <tbody>
+            <tr><td>Task Execution Role</td><td>Pull ECR + logs</td><td>Khác Task Role (app API)</td></tr>
+            <tr><td>Fargate X-Ray</td><td>Sidecar daemon</td><td>Không Daemon Set</td></tr>
+            <tr><td>CodeBuild scale</td><td>Fully managed</td><td>Không ASG cho CodeBuild</td></tr>
+            <tr><td>buildspec phases</td><td>install → pre_build → build → post_build</td><td>Không có source/deploy phase</td></tr>
+            <tr><td>CodeDeploy max revisions disk</td><td>Agent config EC2</td><td>Không config Pipeline</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+
+        <p class="limits-note">Mở tab service tương ứng (SQS, DynamoDB, Lambda…) để xem câu hỏi + sơ đồ chi tiết từng giới hạn.</p>
   </div>
 
   <div id="compare" class="tab-panel" role="tabpanel">
@@ -5297,6 +6570,26 @@
   GSI[GSI new PK SK own capacity eventual read] --- LSI[LSI same PK new SK strong read optional]</pre></div>
       </div>
       <div class="compare-card">
+        <h3>PurgeQueue vs DeleteQueue</h3>
+        <div class="diagram"><pre class="mermaid">flowchart LR
+  PURGE[PurgeQueue xóa message giữ queue] --- DELQ[DeleteQueue xóa cả queue]</pre></div>
+      </div>
+      <div class="compare-card">
+        <h3>X-Ray — Sampling vs Filtering</h3>
+        <div class="diagram"><pre class="mermaid">flowchart LR
+  SAM[Sampling ghi trace nào] --- FIL[Filtering search trace đã ghi]</pre></div>
+      </div>
+      <div class="compare-card">
+        <h3>AWS Config vs AppConfig</h3>
+        <div class="diagram"><pre class="mermaid">flowchart LR
+  CFG[Config audit AWS resources compliance] --- APP[AppConfig deploy app config feature flags]</pre></div>
+      </div>
+      <div class="compare-card">
+        <h3>Reserved vs Provisioned concurrency</h3>
+        <div class="diagram"><pre class="mermaid">flowchart LR
+  RES[Reserved cap max concurrent] --- PROV[Provisioned warm instances no cold start]</pre></div>
+      </div>
+      <div class="compare-card">
         <h3>DynamoDB RCU — Strong vs Eventual</h3>
         <div class="diagram"><pre class="mermaid">flowchart LR
   STR[Strong ceil KB/4] --- EVT[Eventual = Strong / 2]</pre></div>
@@ -5351,7 +6644,7 @@
   </div>
 
   <div id="mistakes" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>Lỗi hay chọn nhầm</h2><span class="badge">55 mục</span></div>
+    <div class="panel-header"><h2>Lỗi hay chọn nhầm</h2><span class="badge">70 mục</span></div>
     <div class="mistakes">
       <span class="item">EventBridge không invoke Lambda — chọn execution role events:PutEvents (SAI); đúng là resource policy events.amazonaws.com invoke function</span>
       <span class="item">SQS partial batch fail — chọn batch size 1 hoặc FIFO (SAI); đúng ReportBatchItemFailures + batchItemFailures list</span>
@@ -5407,6 +6700,21 @@
       <span class="item">API GW PROD/DEV Lambda alias — chọn "environment variable" (C); đúng stage variable + 2 stage (D)</span>
       <span class="item">Lambda subset user test — tạo REST API mới + API GW canary (C); đúng weighted alias (D, least effort)</span>
       <span class="item">Lambda async DLQ — chọn SQS FIFO DLQ (C); đúng SQS standard DLQ (B) — Lambda không hỗ trợ FIFO làm DLQ</span>
+      <span class="item">EC2 role Deny S3 + credentials file admin — chọn D (không S3); đúng A — shared credentials file ưu tiên hơn instance profile</span>
+      <span class="item">API GW mock HTML landing page — chọn C (HTML trong request template); đúng B — request JSON statusCode 200, HTML trong response template text/html</span>
+      <span class="item">Secrets Manager cross-region DR — chọn C (secret mới đích + KMS nguồn); đúng A — replication từ primary + KMS key region đích</span>
+      <span class="item">X-Ray sampling user vs background — chọn A (sample background cao); đúng C — trace 100% user/transaction, sample thấp background high-volume</span>
+      <span class="item">ECS EC2 → Fargate — CreateCapacityProvider (B/D) hoặc Spot primary (C); đúng A — PutClusterCapacityProviders + FARGATE base + FARGATE_SPOT failover</span>
+      <span class="item">CFN ECS CodeDeploy canary % user — nested stack (C) hoặc stack update trực tiếp (D); đúng A — Transform + AWS::CodeDeploy::BlueGreen hook</span>
+      <span class="item">CFN API GW method mới 404 — CloudFront invalidation (C) hoặc disable-rollback (A); đúng B — CodeBuild aws apigateway create-deployment</span>
+      <span class="item">KMS xóa key ngay — KMS managed schedule delete (A) hoặc CMK delete key material (D); đúng B — imported key material + DeleteImportedKeyMaterial</span>
+      <span class="item">Lambda zip quá lớn RequestEntityTooLarge — CLI update-function-code --publish (A); đúng B+C — S3 deploy hoặc container image ECR</span>
+      <span class="item">Lambda custom metrics từ logs — Kinesis→S3 (A) hoặc Logs Insights (D); đúng C — EMF + open source client libraries</span>
+      <span class="item">CodeArtifact cache Maven Central — repo/domain mới (A/B) hoặc resource policy (C); đúng D — upstream trên repo hiện có</span>
+      <span class="item">CFN multi-region primary+DR — CodeBuild mỗi region (B) hoặc CodeDeploy (D); đúng C — StackSets</span>
+      <span class="item">EC2 feature flags poll+cache — Secrets Manager+ElastiCache (A); đúng D — AppConfig + AppConfig Agent localhost</span>
+      <span class="item">DDB Stream spreadsheet latest — OLD_IMAGE (B) hoặc DAX subscribe (A/D); đúng C — Stream NEW_IMAGE + Lambda</span>
+      <span class="item">Lambda init allocation predictable latency — Reserved concurrency (B) hoặc $LATEST (E); đúng A+C — Provisioned concurrency + publish version</span>
     </div>
 
 </main>

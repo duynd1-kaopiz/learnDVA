@@ -1,0 +1,7 @@
+# Chỉ theo dõi folder dva-exam-notes + index GitHub Pages
+*
+
+!.gitignore
+!index.html
+!dva-exam-notes/
+!dva-exam-notes/**
