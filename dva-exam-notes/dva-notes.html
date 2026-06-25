@@ -1321,7 +1321,7 @@
   </div>
 
   <div id="s3" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>S3</h2><span class="badge">22 câu</span></div>
+    <div class="panel-header"><h2>S3</h2><span class="badge">23 câu</span></div>
     <details class="service-topics" open>
       <summary>Câu hỏi hay ra đề — tra nhanh</summary>
       <table class="limits-table">
@@ -1335,6 +1335,7 @@
             <tr><td>On-prem 2GB upload nhanh</td><td class="ans">Multipart + Transfer Acceleration</td><td class="trap">Chỉ multipart</td></tr>
             <tr><td>Medical CMK + audit + rotate</td><td class="ans">SSE-KMS CMK + key rotation</td><td class="trap">SSE-C; SSE-S3</td></tr>
             <tr><td>High request rate</td><td class="ans">Phân tán object key prefix</td><td class="trap">Object tags; root prefix</td></tr>
+            <tr><td>Archive chờ giờ vs ms</td><td class="ans">Flexible/Deep = restore; GIR = ms</td><td class="trap">Glacier đọc ngay như Standard</td></tr>
             <tr><td>Versioning xóa sau 1 năm</td><td class="ans">Lifecycle expire + delete noncurrent</td><td class="trap">Chỉ delete markers</td></tr>
             <tr><td>Concurrent PUT cùng key thiếu event</td><td class="ans">Non-versioned có thể 1 event</td><td class="trap">Versioning = nguyên nhân</td></tr>
             <tr><td>File >5 GB upload</td><td class="ans">Multipart upload</td><td class="trap">Single PUT max 5 GB</td></tr>
@@ -1624,6 +1625,53 @@
         <span class="tip">Standard-IA / One Zone-IA: min storage 30 ngày + phí retrieval</span>
         <span class="tip">Glacier classes: min storage 90-180 ngày tùy loại</span>
         <span class="tip">Intelligent-Tiering: tự chuyển tier, phí monitoring nhỏ — không phí retrieval</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="q">Storage classes — bảng retrieval &amp; khi nào dùng</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Liệt kê S3 storage class + <em>thời gian lấy data</em></li>
+          <li>Chọn class theo tần suất truy cập, archive, latency</li>
+          <li>Bẫy: Glacier Flexible/Deep Archive <em>GetObject ngay</em> — phải <strong>restore</strong> trước</li>
+        </ul>
+      </div>
+      <div class="a">Xem bảng — nhớ min storage + retrieval time từng class</div>
+      <table class="limits-table" style="margin-top:.75rem;font-size:.88rem">
+        <thead><tr><th>Storage class</th><th>Khi nào dùng</th><th>Thời gian lấy data</th><th>Min storage</th></tr></thead>
+        <tbody>
+          <tr><td><strong>S3 Standard</strong></td><td>Truy cập thường xuyên, web, app chính</td><td class="ans">Milliseconds — truy cập ngay</td><td>—</td></tr>
+          <tr><td><strong>S3 Express One Zone</strong></td><td>Latency cực thấp, compute cùng AZ (directory bucket)</td><td class="ans">Single-digit ms</td><td>—</td></tr>
+          <tr><td><strong>Intelligent-Tiering</strong></td><td>Pattern truy cập không rõ / thay đổi</td><td class="ans">Ms (tier đang active); auto chuyển tier</td><td>—</td></tr>
+          <tr><td><strong>Standard-IA</strong></td><td>Ít truy cập (vd vài tháng/lần), cần multi-AZ</td><td class="ans">Milliseconds — truy cập ngay</td><td>30 ngày</td></tr>
+          <tr><td><strong>One Zone-IA</strong></td><td>Ít truy cập, chấp nhận 1 AZ (rẻ hơn IA)</td><td class="ans">Milliseconds — truy cập ngay</td><td>30 ngày</td></tr>
+          <tr><td><strong>Glacier Instant Retrieval</strong></td><td>Archive nhưng cần đọc ngay (medical, media)</td><td class="ans">Milliseconds — truy cập ngay</td><td>90 ngày</td></tr>
+          <tr><td><strong>Glacier Flexible Retrieval</strong></td><td>Archive, backup/DR, chấp nhận chờ</td><td>Expedited <strong>1–5 phút</strong> · Standard <strong>3–5 giờ</strong> · Bulk <strong>5–12 giờ</strong> (free bulk)</td><td>90 ngày</td></tr>
+          <tr><td><strong>Glacier Deep Archive</strong></td><td>Lưu compliance 7+ năm, rẻ nhất</td><td>Standard <strong>~12 giờ</strong> · Bulk <strong>~48 giờ</strong></td><td>180 ngày</td></tr>
+        </tbody>
+      </table>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Truy cập ngay vs phải restore</div>
+        <pre class="mermaid">flowchart LR
+  subgraph NOW[GetObject ngay - ms]
+    ST[Standard]
+    EX[Express One Zone]
+    IT[Intelligent-Tiering]
+    IA[Standard-IA / One Zone-IA]
+    GIR[Glacier Instant Retrieval]
+  end
+  subgraph RESTORE[Phải restore trước - async]
+    GF[Glacier Flexible 1m-12h]
+    DA[Deep Archive 12-48h]
+  end</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">IA classes: min 30 ngày + phí retrieval mỗi GB</span>
+        <span class="tip">Flexible/Deep: object archived — restore tạo bản copy tạm rồi mới đọc</span>
+        <span class="tip">Intelligent-Tiering: không retrieval fee; có phí monitoring nhỏ</span>
+        <span class="tip">Lifecycle: Standard → IA → Glacier — không transition ngược trực tiếp</span>
       </div>
     </div>
 
@@ -2930,7 +2978,7 @@
   </div>
 
   <div id="dynamodb" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>DynamoDB</h2><span class="badge">28 câu</span></div>
+    <div class="panel-header"><h2>DynamoDB</h2><span class="badge">29 câu</span></div>
     <details class="service-topics" open>
       <summary>Câu hỏi hay ra đề — tra nhanh</summary>
       <table class="limits-table">
@@ -2944,6 +2992,7 @@
             <tr><td>GSI read consistency</td><td class="ans">Eventually consistent only</td><td class="trap">Strong read GSI</td></tr>
             <tr><td>GSI count</td><td class="ans">Max 20 GSI / table</td><td class="trap">LSI max 5</td></tr>
             <tr><td>Stream latest state spreadsheet</td><td class="ans">NEW_IMAGE + Lambda</td><td class="trap">OLD_IMAGE; DAX subscribe</td></tr>
+            <tr><td>Streams tích hợp service nào</td><td class="ans">Lambda; Global Tables; Kinesis; KCL</td><td class="trap">SNS/SQS trực tiếp; DAX</td></tr>
             <tr><td>TTL expiresAt qua rồi</td><td class="ans">Item vẫn có thể tồn tại 48h</td><td class="trap">Xóa instant</td></tr>
             <tr><td>Upsert min IAM</td><td class="ans">GetItem + UpdateItem</td><td class="trap">Thêm PutItem</td></tr>
             <tr><td>Transact write cost</td><td class="ans">2× WCU</td><td class="trap">BatchWrite partial OK</td></tr>
@@ -3379,6 +3428,36 @@
         <span class="tip">Streams consumer hợp lệ: Lambda (và tương tự Kinesis path) — không SNS trực tiếp</span>
         <span class="tip">CloudWatch alarm ≠ per-record business filter trên stream payload</span>
         <span class="tip">B vẫn đúng logic nhưng A ít code hơn khi đề nhấn least effort</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="q">Streams — tích hợp được service nào</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Item <em>INSERT/MODIFY/REMOVE</em> → trigger downstream (notify, sync, audit)</li>
+          <li>Đề hỏi consumer / integration <em>hợp lệ</em> với DynamoDB Streams</li>
+          <li>Bẫy: map trực tiếp <strong>SNS / SQS / EventBridge</strong>; DAX subscribe stream</li>
+        </ul>
+      </div>
+      <div class="a">Lambda (event source mapping); Global Tables (replication); Kinesis Data Streams (streaming destination); custom app / KCL qua SDK</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Consumers hợp lệ vs không hợp lệ</div>
+        <pre class="mermaid">flowchart LR
+  T[(DynamoDB table)] --> STR[Streams]
+  STR --> L[Lambda ESM]
+  STR --> GT[Global Tables replica]
+  STR --> KDS[Kinesis Data Streams]
+  KDS --> KCL[KCL / Lambda / custom]
+  L --> SNS[SNS SQS ES OpenSearch...]
+  STR -.x|KHÔNG trực tiếp| SNS
+  STR -.x|KHÔNG| DAX[DAX cache]</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">Lambda ESM nguồn poll: SQS · Kinesis · DDB Streams · MSK · Amazon MQ</span>
+        <span class="tip">Muốn SNS/SQS/EventBridge → Lambda (hoặc Kinesis rồi consumer) ở giữa</span>
+        <span class="tip">DAX = cache read/write-through — không phát change events</span>
       </div>
     </div>
 
@@ -4503,7 +4582,7 @@
   </div>
 
   <div id="iam" class="tab-panel" role="tabpanel">
-    <div class="panel-header"><h2>IAM / Security</h2><span class="badge">20 câu</span></div>
+    <div class="panel-header"><h2>IAM / Security</h2><span class="badge">22 câu</span></div>
     <details class="service-topics" open>
       <summary>Câu hỏi hay ra đề — tra nhanh</summary>
       <table class="limits-table">
@@ -4516,6 +4595,8 @@
             <tr><td>KMS throttle app encrypt</td><td class="ans">Encryption SDK data key cache</td><td class="trap">S3 bucket-level key cho app</td></tr>
             <tr><td>KMS Encrypt file MB</td><td class="ans">Envelope + data key</td><td class="trap">Encrypt API 4KB chunks</td></tr>
             <tr><td>Parameter Store vs Secrets</td><td class="ans">PS 4KB/8KB; không resource policy</td><td class="trap">SM 64KB + resource policy + rotation</td></tr>
+            <tr><td>Cross-account vs replication SM/PS</td><td class="ans">SM: cả hai; PS: IAM+KMS only</td><td class="trap">PS có replication</td></tr>
+            <tr><td>Delete recovery window SM/PS</td><td class="ans">SM 7–30d default 30; PS xóa ngay</td><td class="trap">PS recovery 30d</td></tr>
             <tr><td>Pre sign-up chặn domain</td><td class="ans">Pre sign-up Lambda trigger</td><td class="trap">Pre-authentication</td></tr>
             <tr><td>ID token email + groups</td><td class="ans">ID token</td><td class="trap">Access token</td></tr>
         </tbody>
@@ -4579,6 +4660,75 @@
         <span class="tip">Cấu hình replication từ secret primary — add replica region</span>
         <span class="tip">Mỗi replica dùng KMS key ở region đích — không KMS region nguồn</span>
         <span class="tip">Sync tự động khi secret value đổi — không cần rule riêng gắn rotation</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="q">Secrets Manager vs Parameter Store — cross-account vs replication</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Phân biệt <strong>cross-account</strong> (share quyền) vs <strong>cross-region replication</strong> (copy DR)</li>
+          <li>Đề hỏi service nào có <em>replication</em> hoặc <em>resource-based policy</em></li>
+          <li>Bẫy: nghĩ cả Secrets Manager lẫn Parameter Store đều replicate cross-account</li>
+        </ul>
+      </div>
+      <div class="a">Chỉ <strong>Secrets Manager</strong> có cross-region replication + resource policy cross-account; <strong>Parameter Store</strong> không replicate, không resource policy — cross-account qua IAM identity policy + KMS key policy</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — 2 khái niệm tách riêng</div>
+        <pre class="mermaid">flowchart TD
+  subgraph SM[Secrets Manager]
+    SM1[Cross-region replication primary to replica + KMS region đích]
+    SM2[Cross-account resource policy trên secret]
+    SM3[Automatic rotation RDS]
+  end
+  subgraph PS[Parameter Store]
+    PS1[Cross-region replication KHÔNG có]
+    PS2[Cross-account chỉ IAM + KMS key policy]
+    PS3[Hierarchical path / CFN dynamic ref]
+  end
+  Q1[Đề DR replicate secret] --> SM1
+  Q2[Đề resource-based policy] --> SM2
+  Q3[Đề config env path] --> PS3</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">Cross-account ≠ replication — account khác vs region khác</span>
+        <span class="tip">SM ~64KB + rotation + replicate; PS 4KB/8KB + rẻ hơn cho config</span>
+        <span class="tip">Parameter Store SecureString encrypt được nhưng không thay SM khi đề yêu cầu resource policy</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="q">SM vs PS — retention &amp; version history</div>
+      <div class="req">
+        <div class="req-title">Yêu cầu đề thường gặp</div>
+        <ul>
+          <li>Xóa secret/parameter — còn <em>recovery window</em> bao lâu?</li>
+          <li>Giữ bao nhiêu <em>version history</em>?</li>
+          <li>Bẫy: nghĩ Parameter Store cũng có recovery 30 ngày như Secrets Manager</li>
+        </ul>
+      </div>
+      <div class="a">SM: recovery window <strong>default 30 ngày</strong> (7–30), <code>restore-secret</code> trong window; PS: <strong>xóa ngay</strong>, không restore</div>
+      <div class="diagram">
+        <div class="diagram-label">Sơ đồ — Delete &amp; version retention</div>
+        <pre class="mermaid">flowchart LR
+  subgraph SM[Secrets Manager delete]
+    D1[DeleteSecret] --> W[Recovery 7-30d default 30]
+    W -->|restore-secret| OK[Khôi phục]
+    W -->|hết window| GONE[Xóa vĩnh viễn]
+    FD[ForceDeleteWithoutRecovery] --> GONE
+  end
+  subgraph PS[Parameter Store delete]
+    D2[delete-parameter] --> GONE2[Xóa ngay + mọi version]
+  end
+  subgraph VER[Version history cả hai]
+    V[max 100 versions]
+  end</pre>
+      </div>
+      <div class="tips">
+        <span class="tip">Version: max 100/secret hoặc parameter — PS xóa version cũ nhất; SM giữ version có label AWSCURRENT/AWSPREVIOUS/custom</span>
+        <span class="tip">SM unlabeled deprecated xóa khi &gt;100 (trừ version tạo &lt;24h)</span>
+        <span class="tip">Active secret/param không tự expire — PS Advanced có expiration policy tùy cấu hình</span>
       </div>
     </div>
 
@@ -6351,7 +6501,9 @@
             <tr><td>Single PUT</td><td>max 5 GB</td><td>Lớn hơn → multipart upload</td></tr>
             <tr><td>Object size</td><td>max 5 TB</td><td></td></tr>
             <tr><td>Throughput / prefix</td><td>~3.500 PUT/s; ~5.500 GET/s</td><td>Phân tán key prefix</td></tr>
-            <tr><td>Standard-IA / One Zone-IA</td><td>min 30 ngày</td><td>+ retrieval fee</td></tr>
+            <tr><td>Standard-IA / One Zone-IA</td><td>min 30 ngày</td><td>Retrieval ms + phí/GB</td></tr>
+            <tr><td>Glacier Instant / Flexible</td><td>min 90 ngày</td><td>GIR ms; Flexible restore 1m–12h</td></tr>
+            <tr><td>Glacier Deep Archive</td><td>min 180 ngày</td><td>Restore ~12h hoặc ~48h bulk</td></tr>
             <tr><td>Pre-signed URL</td><td>Expiry tùy cấu hình</td><td>Upload tạm cross-account</td></tr>
           </tbody>
         </table>
@@ -6411,8 +6563,8 @@
             <tr><td>EBS io1</td><td>50 IOPS/GiB</td><td>200 GiB → 10.000 IOPS</td></tr>
             <tr><td>EFS</td><td>File NFS nhiều EC2</td><td>Standard-IA = ít truy cập; ≠ S3 object</td></tr>
             <tr><td>RDS auto backup</td><td>max 35 ngày</td><td>Long-term → manual snapshot</td></tr>
-            <tr><td>Parameter Store</td><td>4 KB (standard); 8 KB (advanced)</td><td>Không resource policy cross-account</td></tr>
-            <tr><td>Secrets Manager</td><td>~64 KB / secret</td><td>Resource policy + rotation + replicate</td></tr>
+            <tr><td>Parameter Store</td><td>4 KB (standard); 8 KB (advanced)</td><td>Delete ngay; max 100 versions; không resource policy</td></tr>
+            <tr><td>Secrets Manager</td><td>~64 KB / secret</td><td>Delete recovery 7–30d (default 30); max 100 versions</td></tr>
             <tr><td>KMS Encrypt API</td><td class="hard">~4 KB</td><td>File lớn → Encryption SDK</td></tr>
             <tr><td>ElastiCache Redis value</td><td>max 512 MB / key</td><td>Memcached ~1 MB / item</td></tr>
             <tr><td>Step Functions Standard</td><td>max 1 năm</td><td>Human approval</td></tr>
@@ -6443,6 +6595,13 @@
   <div id="compare" class="tab-panel" role="tabpanel">
     <div class="panel-header"><h2>Bảng phân biệt hay bẫy</h2></div>
     <div class="compare-grid">
+      <div class="compare-card">
+        <h3>Secrets Manager vs Parameter Store</h3>
+        <div class="diagram"><pre class="mermaid">flowchart LR
+  SM[Secrets Manager: 64KB rotation replicate resource policy delete recovery 7-30d] --- PS[Parameter Store: 4-8KB delete ngay max 100 versions]
+  SM --- CA[Cross-account: SM resource policy + KMS]
+  PS --- CA2[Cross-account: IAM + KMS only]</pre></div>
+      </div>
       <div class="compare-card">
         <h3>Multi-AZ vs Read Replica</h3>
         <div class="diagram"><pre class="mermaid">flowchart LR
@@ -6542,6 +6701,11 @@
         <div class="diagram"><pre class="mermaid">flowchart LR
   S3E[SSE-S3 S3 quản lý key] --- KMSE[SSE-KMS KMS CMK audit]
   KMSE --- CE[SSE-C client gửi key không lưu]</pre></div>
+      </div>
+      <div class="compare-card">
+        <h3>S3 — truy cập ngay vs phải restore</h3>
+        <div class="diagram"><pre class="mermaid">flowchart LR
+  MS[Standard IA GIR Express IT - ms ngay] --- ASYNC[Flexible Deep Archive - restore async]</pre></div>
       </div>
       <div class="compare-card">
         <h3>S3 Storage — Standard vs IA vs Glacier</h3>

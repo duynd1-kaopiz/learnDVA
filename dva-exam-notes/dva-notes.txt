@@ -394,6 +394,14 @@ Script cập nhật: dva-exam-notes/scripts/inject-service-topics.py
   Tip: Standard-IA/One Zone-IA min 30 ngày + retrieval fee
   Tip: Intelligent-Tiering auto tier, phí monitoring, không retrieval fee
 
+[Câu] S3 storage classes — bảng retrieval & min storage (cheat sheet)
+  Yêu cầu đề: Liệt kê class; khi nào dùng; thời gian lấy data (retrieval)
+  Đáp án: Standard/Express ms truy cập ngay; IA ms + min 30d; GIR ms archive; Flexible restore 1-5m/3-5h/5-12h; Deep Archive 12h/48h; Intelligent-Tiering auto tier
+  Tip: Flexible + Deep Archive phải RESTORE trước khi đọc — không GetObject trực tiếp như Standard
+  Tip: Min storage: IA 30d; GIR/Flexible 90d; Deep Archive 180d
+  Tip: Express One Zone = latency cực thấp single-digit ms, 1 AZ, directory bucket — app cần tốc độ cao
+  Lỗi hay nhầm: Glacier Flexible/Deep Archive đọc ngay như Standard — phải restore async trước
+
 [Câu] Chọn storage class theo use case
   Yêu cầu đề: Archive năm/chờ giờ/ms; pattern không rõ; chấp nhận 1 AZ
   Đáp án: Deep Archive rẻ nhất lâu dài; GIR ms retrieval; Intelligent-Tiering pattern không rõ
@@ -911,6 +919,15 @@ Script cập nhật: dva-exam-notes/scripts/inject-service-topics.py
   Lỗi hay nhầm: C — Streams → SNS trực tiếp (không hỗ trợ)
   Lỗi hay nhầm: B — filter trong Lambda code — nhiều dev effort hơn event filtering (A)
 
+[Câu] DynamoDB Streams — tích hợp được service nào
+  Yêu cầu đề: Item thay đổi → trigger downstream; đề hỏi consumer / integration hợp lệ
+  Yêu cầu đề: Pattern event-driven từ DDB (notify SNS, sync S3, audit…)
+  Đáp án: Lambda (event source mapping — chính); Global Tables (replication nội bộ); Kinesis Data Streams (streaming destination); custom app/KCL (SDK GetRecords)
+  Tip: Lambda ESM hỗ trợ: SQS, Kinesis, DDB Streams, MSK, Amazon MQ — DDB Streams là một trong các nguồn poll của Lambda
+  Tip: Streams → SNS/SQS/EventBridge/SFN trực tiếp KHÔNG được — cần Lambda (hoặc Kinesis rồi consumer)
+  Tip: DAX không subscribe stream; CloudWatch alarm không filter từng stream record
+  Lỗi hay nhầm: Streams → SNS trực tiếp; DAX thay Stream trigger Lambda
+
 [Câu] TTL — tự xóa item hết hạn
   Yêu cầu đề: Session/log auto-delete; attribute Number epoch; hoặc expiresAt đã qua 2 giờ — item còn trong table không?
   Đáp án: Enable TTL attribute; xóa nền không tốn WCU; item CÓ THỂ vẫn tồn tại — TTL deletion async, có thể mất tới 48 giờ
@@ -1236,6 +1253,22 @@ Script cập nhật: dva-exam-notes/scripts/inject-service-topics.py
   Tip: Secrets Manager tự sync khi secret value thay đổi — không cần rule chạy riêng lúc rotation
   Lỗi hay nhầm: C — tạo secret mới us-east-1 + KMS us-west-1 (sai hướng và sai KMS region)
   Lỗi hay nhầm: B — "replication rule during rotation" không phải cơ chế SM; D — S3 lifecycle/replication
+
+[Câu] Secrets Manager vs Parameter Store — cross-account vs replication
+  Yêu cầu đề: Phân biệt cross-account và cross-region; đề hỏi service nào có replication / resource policy
+  Yêu cầu đề: DR replicate secret sang region khác; hoặc share secret cross-account qua resource-based policy
+  Đáp án: SM có cross-region replication (primary → replica region + KMS region đích) + resource policy cross-account; Parameter Store KHÔNG có replication built-in, KHÔNG có resource policy — cross-account chỉ IAM identity policy + KMS key policy
+  Tip: Cross-account ≠ replication — cross-account = share quyền truy cập; replication = copy/sync sang region khác
+  Tip: Đề "resource-based policy" + cross-account token/secret → Secrets Manager (Parameter Store sai)
+  Tip: Đề DR replicate secret us-west → us-east → Secrets Manager replication từ primary (Parameter Store không có)
+  Lỗi hay nhầm: Nghĩ cả hai đều có cross-account replication — chỉ SM có replication; PS không replicate
+
+[Câu] Secrets Manager vs Parameter Store — retention & version history
+  Yêu cầu đề: Xóa secret/parameter — còn recovery window bao lâu; giữ bao nhiêu version
+  Đáp án: SM delete recovery window default 30 ngày (7–30), restore-secret trong window; ForceDeleteWithoutRecovery = xóa ngay; PS delete = xóa ngay vĩnh viễn, không restore
+  Tip: Version history: cả hai max 100 versions/parameter hoặc secret; PS xóa version cũ nhất khi vượt 100; SM giữ version có label (AWSCURRENT/AWSPREVIOUS/custom), unlabeled deprecated xóa khi >100 (trừ version <24h)
+  Tip: Secret/parameter đang active không tự hết hạn — chỉ hết hạn nếu cấu hình expiration policy (PS Advanced)
+  Lỗi hay nhầm: Nghĩ PS cũng có recovery window 30 ngày khi delete — chỉ SM có
 
 [Câu] Q54 — Lambda shared account → ec2:DescribeInstances dev accounts (least privilege)
   Yêu cầu đề: Lambda chạy ở shared account; cần DescribeInstances EC2 ở development accounts
